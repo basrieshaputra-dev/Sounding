@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Subtle drop shadow behind tank silhouette -->
+    <path
+        android:fillColor="#26000000"
+        android:pathData="M34,36 C34,30 42,27 55,27 C68,27 76,30 76,36 L76,75 C76,79 73,82 69,82 L41,82 C37,82 34,79 34,75 Z" />
+
+    <!-- Main cylindrical oil tank body (centered in safe zone 26..82) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M33,35 C33,29 41,26 54,26 C67,26 75,29 75,35 L75,73 C75,77.5 71.5,80 67,80 L41,80 C36.5,80 33,77.5 33,73 Z" />
+
+    <!-- Top sounding hatch cap -->
+    <path
+        android:fillColor="#FFCCFBF1"
+        android:pathData="M48,21 L60,21 C61.5,21 62.5,22 62.5,23.5 L62.5,27 L45.5,27 L45.5,23.5 C45.5,22 46.5,21 48,21 Z" />
+
+    <!-- Cutaway sight glass interior (dark teal recess) -->
+    <path
+        android:fillColor="#FF134E4A"
+        android:pathData="M40,38 L68,38 C69.5,38 70.5,39 70.5,40.5 L70.5,72 C70.5,73.5 69.5,74.5 68,74.5 L40,74.5 C38.5,74.5 37.5,73.5 37.5,72 L37.5,40.5 C37.5,39 38.5,38 40,38 Z" />
+
+    <!-- Warm amber palm oil liquid level inside tank -->
+    <path
+        android:fillColor="#FFF59E0B"
+        android:pathData="M38.5,53 C44,50.5 49,55.5 54,53 C59,50.5 64,55 69.5,52.5 L69.5,71.5 C69.5,72.8 68.5,73.5 67.2,73.5 L40.8,73.5 C39.5,73.5 38.5,72.8 38.5,71.5 Z" />
+
+    <!-- Bright oil surface meniscus highlight -->
+    <path
+        android:fillColor="#FFFDE68A"
+        android:pathData="M38.5,53 C44,50.5 49,55.5 54,53 C59,50.5 64,55 69.5,52.5 L69.5,55.5 C64,58 59,53.5 54,56 C49,58.5 44,53.5 38.5,56 Z" />
+
+    <!-- Precision sounding dip tape vertical line & plumb bob -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M53,27 L55,27 L55,66 L53,66 Z" />
+    <path
+        android:fillColor="#FFCCFBF1"
+        android:pathData="M51,64 L57,64 L54,71 Z" />
+
+    <!-- Calibration ruler gauge marks on right side of sight glass -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M62,43 L68,43 L68,45 L62,45 Z M64,49 L68,49 L68,51 L64,51 Z M61,55 L68,55 L68,57 L61,57 Z M64,61 L68,61 L68,63 L64,63 Z M62,67 L68,67 L68,69 L62,69 Z" />
+</vector>

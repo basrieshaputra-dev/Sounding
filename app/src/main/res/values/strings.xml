@@ -1,0 +1,136 @@
+<resources>
+    <string name="app_name">Sounding Tangki</string>
+    <string name="app_header_title">Sounding Preblend &amp; Towertank</string>
+    <string name="app_header_subtitle">FAC - SPECIALTY FATS - TEXTURIZING</string>
+    <string name="app_header_credit">App By. Basri syaputra ID 11536</string>
+
+    <!-- Navigation Tabs -->
+    <string name="tab_calculator">Hitung Sounding</string>
+    <string name="tab_history">Riwayat &amp; Rekap</string>
+    <string name="tab_history_with_count">Riwayat (%1$d)</string>
+
+    <!-- Calculator Form -->
+    <string name="section_input_title">Parameter Sounding</string>
+    <string name="label_shift">Shift</string>
+    <string name="label_tank">Nomor Tangki</string>
+    <string name="label_product">Jenis Produk / Minyak</string>
+    <string name="label_sounding">Sounding Level (cm)</string>
+    <string name="placeholder_sounding">Contoh: 401 atau 729.7</string>
+    <string name="label_temp">Suhu (°C)</string>
+    <string name="placeholder_temp">30</string>
+    <string name="tank_meta_format">Meja: %1$s cm • Ref: %2$s°C • Kap: %3$d MT</string>
+    <string name="tank_manual_meta">Mode Input Manual (kg) • Non-Kalibrasi</string>
+    <string name="label_manual_kg">Input Manual Stok (kg)</string>
+    <string name="placeholder_manual_kg">Contoh: 18500</string>
+    <string name="label_manual_note">Catatan (Opsional)</string>
+    <string name="placeholder_manual_note">Contoh: CBS Texturizing</string>
+    <string name="detail_input_mode">Mode Input</string>
+    <string name="detail_input_mode_manual">Manual (kg)</string>
+    <string name="detail_product_label">Produk Oil</string>
+    <string name="detail_note_label">Catatan</string>
+    <string name="tank_picker_title">Pilih Tangki</string>
+    <string name="product_picker_title">Pilih jenis Produk Oil</string>
+    <string name="placeholder_select_product">Pilih jenis Produk Oil</string>
+    <string name="favorite_badge_label">Favorit</string>
+    <string name="search_placeholder">Cari nama atau kode…</string>
+    <string name="reset_input">Reset</string>
+
+    <!-- Tank Gauge & Diagram -->
+    <string name="gauge_capacity_label">Estimasi Isi Tangki</string>
+    <string name="gauge_table_label">Tabel %1$s</string>
+    <string name="diagram_card_title">Diagram Tangki Silinder</string>
+    <string name="diagram_max_height_format">Maks: %1$d cm</string>
+    <string name="diagram_label_high_level">High Level</string>
+    <string name="diagram_label_fill_percent">Persentase Isi</string>
+    <string name="diagram_label_temp">Suhu Minyak</string>
+    <string name="diagram_ref_temp_format">Ref: %1$s°C</string>
+    <string name="diagram_overfill_badge">Melebihi Kapasitas</string>
+    <string name="cd_tank_diagram">Diagram tangki silinder %1$s, isi %2$s persen, High Level %3$s cm, suhu %4$s derajat Celsius</string>
+
+    <!-- Results Card -->
+    <string name="result_card_title">Hasil Perhitungan Stok</string>
+    <string name="metric_stock_kg">Total Stock (kg)</string>
+    <string name="metric_stock_ton">Tonase (MT)</string>
+    <string name="detail_high_level">High Level (Cm)</string>
+    <string name="detail_table_vol">Volume Tabel (%1$d cm)</string>
+    <string name="detail_fraction">Pecahan (%1$s × %2$s)</string>
+    <string name="detail_total_vol">Total Volume</string>
+    <string name="detail_density">Density (%1$s°C)</string>
+    <string name="detail_vcf">VCF (Ref %1$s°C)</string>
+
+    <!-- Actions & Empty State -->
+    <string name="action_save_history">Simpan ke Riwayat</string>
+    <string name="action_copy_wa">Salin WA</string>
+    <string name="action_share_wa">Bagikan</string>
+    <string name="empty_calc_title">Siap Menghitung Sounding</string>
+    <string name="empty_calc_hint">Pilih jenis Produk Oil dan masukkan angka Sounding Level (cm) untuk melihat diagram tangki dan hasil perhitungan otomatis.</string>
+    <string name="empty_calc_need_product">Pilih jenis Produk Oil terlebih dahulu untuk menampilkan hasil perhitungan stok.</string>
+    <string name="empty_manual_hint">Masukkan angka Input Manual Stok (kg) untuk mengonversi otomatis ke Ton dan menyimpan data T.50 ke rekap laporan.</string>
+
+    <!-- History & Rekap -->
+    <string name="history_total_label">Total Stok Tercatat</string>
+    <string name="history_count_suffix">%1$d item</string>
+    <string name="action_export_jpg">Export Laporan (.JPG)</string>
+    <string name="action_export_csv">Export CSV</string>
+    <string name="action_delete">Hapus</string>
+    <string name="action_clear_all">Hapus Semua</string>
+    <string name="filter_all_shifts">Semua Shift</string>
+    <string name="empty_history_title">Belum Ada Riwayat</string>
+    <string name="empty_history_desc">Catatan sounding yang disimpan akan tersimpan 100% offline di perangkat ini dan siap diekspor ke Laporan .JPG atau CSV.</string>
+    <string name="confirm_clear_title">Hapus semua riwayat?</string>
+    <string name="confirm_clear_message">Semua %1$d catatan sounding akan dihapus permanen dari perangkat.</string>
+    <string name="dialog_cancel">Batal</string>
+    <string name="dialog_confirm_delete">Hapus</string>
+
+    <!-- Export JPG Modal -->
+    <string name="export_jpg_dialog_title">Export Laporan Harian (.JPG)</string>
+    <string name="label_report_date">Hari &amp; Tanggal</string>
+    <string name="placeholder_report_date">Contoh: Senin, 23 Nov 26</string>
+    <string name="label_report_time">Waktu</string>
+    <string name="time_pagi">Pagi</string>
+    <string name="time_sore">Sore</string>
+    <string name="time_malam">Malam</string>
+    <string name="label_report_operator">Nama Operator</string>
+    <string name="placeholder_report_operator">Contoh: Arif &amp; Basri</string>
+    <string name="label_transfer_section">Catatan Log Transfer (TF / Return)</string>
+    <string name="action_add_transfer">Tambah Log TF</string>
+    <string name="label_tf_jam">Jam</string>
+    <string name="placeholder_tf_jam">09.30</string>
+    <string name="label_tf_ket">Keterangan TF / Return</string>
+    <string name="placeholder_tf_ket">TF T.101 ke T.171</string>
+    <string name="label_tf_qty">Qty (kg)</string>
+    <string name="placeholder_tf_qty">5000</string>
+    <string name="action_share_jpg_wa">Bagikan WA (.JPG)</string>
+    <string name="action_download_jpg">Unduh (.JPG)</string>
+
+    <!-- Toast / Snackbar Messages -->
+    <string name="msg_saved">Tersimpan: %1$s (%2$s kg)</string>
+    <string name="msg_copied_wa">Hasil disalin ke clipboard (siap paste ke WA)</string>
+    <string name="msg_deleted">Catatan %1$s dihapus</string>
+    <string name="msg_no_data_export">Belum ada data untuk di-export</string>
+    <string name="msg_csv_exported">File CSV berhasil disimpan</string>
+    <string name="msg_csv_export_failed">Gagal menyimpan file CSV</string>
+    <string name="msg_jpg_saved">Laporan .JPG berhasil disimpan</string>
+    <string name="msg_jpg_failed">Gagal membuat laporan .JPG</string>
+    <string name="msg_all_cleared">Semua riwayat telah dihapus</string>
+
+    <!-- Content Descriptions -->
+    <string name="cd_tank_icon">Ikon tangki industri</string>
+    <string name="cd_warning_icon">Peringatan kalibrasi</string>
+    <string name="cd_save_icon">Simpan ke riwayat</string>
+    <string name="cd_copy_icon">Salin format WhatsApp</string>
+    <string name="cd_share_icon">Bagikan hasil</string>
+    <string name="cd_export_jpg">Export laporan harian JPG</string>
+    <string name="cd_export_csv">Export data ke CSV</string>
+    <string name="cd_delete_item">Hapus catatan sounding</string>
+    <string name="cd_dropdown">Buka pilihan</string>
+    <string name="cd_clear_search">Hapus pencarian</string>
+    <string name="cd_close">Tutup</string>
+    <string name="cd_company_logo">Logo perusahaan</string>
+    <string name="cd_favorite_add">Tandai %1$s sebagai favorit</string>
+    <string name="cd_favorite_remove">Hapus %1$s dari favorit</string>
+    <string name="theme_light_label">Terang</string>
+    <string name="theme_dark_label">Gelap</string>
+    <string name="cd_switch_to_dark">Beralih ke Tema Gelap</string>
+    <string name="cd_switch_to_light">Beralih ke Tema Terang</string>
+</resources>
