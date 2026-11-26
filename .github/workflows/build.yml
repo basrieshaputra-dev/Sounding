@@ -22,7 +22,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: debug-keystore
-          path: debug.keystore      - run: gradle assembleDebug
+          path: debug.keystore      
+      - run: gradle assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: sounding-tangki-apk
