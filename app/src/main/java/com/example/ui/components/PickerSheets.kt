@@ -44,6 +44,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
+import com.example.data.CalibrationEngine
 import com.example.data.model.TankSpec
 import com.example.ui.theme.MonoTypography
 import com.example.ui.theme.SoundingThemeExtras
@@ -237,7 +238,7 @@ fun ProductPickerBottomSheet(
     val filtered = remember(products, favoriteProducts, query) {
         val q = query.trim().lowercase()
         val matching = if (q.isEmpty()) products else products.filter { it.lowercase().contains(q) }
-        matching.sortedByDescending { it in favoriteProducts }
+        CalibrationEngine.sortProductsWithFavorites(matching, favoriteProducts)
     }
 
     ModalBottomSheet(

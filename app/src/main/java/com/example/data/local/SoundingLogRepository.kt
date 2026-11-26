@@ -1,22 +1,32 @@
 package com.example.data.local
 
+import com.example.data.CalibrationEngine
 import com.example.data.model.SoundingCalculation
 import com.example.util.SoundingFormatters
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 class SoundingLogRepository(
     private val dao: SoundingLogDao
 ) {
-    val logs: Flow<List<SoundingLogEntity>> = dao.observeAllLogs()
+    val logs: Flow<List<SoundingLogEntity>> = dao.observeAllLogs().map { list ->
+        list.map { item ->
+            val normalized = CalibrationEngine.normalizeProductName(item.product)
+            if (normalized != item.product) item.copy(product = normalized) else item
+        }
+    }
 
-    suspend fun saveCalculation(calc: SoundingCalculation): SoundingLogEntity {
-        val now = System.currentTimeMillis()
+    suspend fun saveCalculation(
+        calc: SoundingCalculation,
+        shiftLabel: String = "",
+        recordedAtEpochMs: Long = System.currentTimeMillis()
+    ): SoundingLogEntity {
         val entity = SoundingLogEntity(
-            timestampIso = SoundingFormatters.formatIsoUtc(now),
-            createdAtEpochMs = now,
-            shift = "",
+            timestampIso = SoundingFormatters.formatIsoUtc(recordedAtEpochMs),
+            createdAtEpochMs = recordedAtEpochMs,
+            shift = shiftLabel,
             tankId = calc.tankId,
-            product = calc.product,
+            product = CalibrationEngine.normalizeProductName(calc.product),
             sounding = calc.sounding,
             tableLevel = calc.tableLevel,
             highLevel = calc.highLevel,

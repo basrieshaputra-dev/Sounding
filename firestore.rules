@@ -1,0 +1,185 @@
+rules_version = '2';
+
+// Security Rules for Sounding Preblend & Towertank (FAC - SPECIALTY FATS - TEXTURIZING)
+// Access model: Authenticated plant personnel (Google Sign-In) share realtime operational
+// data scoped to plantUnit == 'FAC-TEXTURIZING'. All writes validate strict schemas,
+// bounds, server timestamps, and caller UID attribution. History deletions are author-only.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all (fail closed)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidShift(val) {
+      return val is string && val in ['Pagi', 'Sore', 'Malam'];
+    }
+
+    function isValidCurrentTankStock(data) {
+      return data.keys().hasAll([
+          'plantUnit', 'tankId', 'product', 'soundingCm', 'tableLevelCm',
+          'highLevelCm', 'totalVolumeL', 'totalStockKg', 'tonase', 'temp',
+          'density', 'vcf', 'manualKg', 'note', 'lastShift', 'lastOperator',
+          'dateKey', 'updatedByUid', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'plantUnit', 'tankId', 'product', 'soundingCm', 'tableLevelCm',
+          'highLevelCm', 'totalVolumeL', 'totalStockKg', 'tonase', 'temp',
+          'density', 'vcf', 'manualKg', 'note', 'lastShift', 'lastOperator',
+          'dateKey', 'updatedByUid', 'updatedAt'
+        ])
+        && data.plantUnit == 'FAC-TEXTURIZING'
+        && data.tankId is string && data.tankId.size() >= 1 && data.tankId.size() <= 24
+        && data.product is string && data.product.size() <= 100
+        && data.soundingCm is number && data.soundingCm >= -500 && data.soundingCm <= 5000
+        && data.tableLevelCm is number && data.tableLevelCm >= 0 && data.tableLevelCm <= 5000
+        && data.highLevelCm is number && data.highLevelCm >= 0 && data.highLevelCm <= 5000
+        && data.totalVolumeL is number && data.totalVolumeL >= 0 && data.totalVolumeL <= 5000000
+        && data.totalStockKg is int && data.totalStockKg >= 0 && data.totalStockKg <= 5000000
+        && data.tonase is number && data.tonase >= 0 && data.tonase <= 5000
+        && data.temp is number && data.temp >= -50 && data.temp <= 300
+        && data.density is number && data.density >= 0 && data.density <= 5
+        && data.vcf is number && data.vcf >= 0 && data.vcf <= 5
+        && data.manualKg is bool
+        && data.note is string && data.note.size() <= 300
+        && isValidShift(data.lastShift)
+        && data.lastOperator is string && data.lastOperator.size() <= 100
+        && data.dateKey is string && data.dateKey.size() >= 1 && data.dateKey.size() <= 20
+        && data.updatedByUid is string && data.updatedByUid == request.auth.uid
+        && data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidSoundingHistory(data) {
+      return data.keys().hasAll([
+          'plantUnit', 'userId', 'dateKey', 'dateLabel', 'timeLabel', 'shift',
+          'operatorName', 'tankId', 'product', 'soundingCm', 'tableLevelCm',
+          'highLevelCm', 'temp', 'totalVolumeL', 'density', 'vcf',
+          'totalStockKg', 'tonase', 'manualKg', 'note', 'recordedAtEpochMs',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'plantUnit', 'userId', 'dateKey', 'dateLabel', 'timeLabel', 'shift',
+          'operatorName', 'tankId', 'product', 'soundingCm', 'tableLevelCm',
+          'highLevelCm', 'temp', 'totalVolumeL', 'density', 'vcf',
+          'totalStockKg', 'tonase', 'manualKg', 'note', 'recordedAtEpochMs',
+          'createdAt'
+        ])
+        && data.plantUnit == 'FAC-TEXTURIZING'
+        && data.userId is string && data.userId == request.auth.uid
+        && data.dateKey is string && data.dateKey.size() >= 1 && data.dateKey.size() <= 20
+        && data.dateLabel is string && data.dateLabel.size() >= 1 && data.dateLabel.size() <= 60
+        && data.timeLabel is string && data.timeLabel.size() >= 1 && data.timeLabel.size() <= 20
+        && isValidShift(data.shift)
+        && data.operatorName is string && data.operatorName.size() <= 100
+        && data.tankId is string && data.tankId.size() >= 1 && data.tankId.size() <= 24
+        && data.product is string && data.product.size() <= 100
+        && data.soundingCm is number && data.soundingCm >= -500 && data.soundingCm <= 5000
+        && data.tableLevelCm is number && data.tableLevelCm >= 0 && data.tableLevelCm <= 5000
+        && data.highLevelCm is number && data.highLevelCm >= 0 && data.highLevelCm <= 5000
+        && data.temp is number && data.temp >= -50 && data.temp <= 300
+        && data.totalVolumeL is number && data.totalVolumeL >= 0 && data.totalVolumeL <= 5000000
+        && data.density is number && data.density >= 0 && data.density <= 5
+        && data.vcf is number && data.vcf >= 0 && data.vcf <= 5
+        && data.totalStockKg is int && data.totalStockKg >= 0 && data.totalStockKg <= 5000000
+        && data.tonase is number && data.tonase >= 0 && data.tonase <= 5000
+        && data.manualKg is bool
+        && data.note is string && data.note.size() <= 300
+        && data.recordedAtEpochMs is int && data.recordedAtEpochMs > 0
+        && data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidShiftReport(data) {
+      return data.keys().hasAll([
+          'plantUnit', 'dateKey', 'dateLabel', 'shift', 'operatorName',
+          'nbNote', 'totalAwalKg', 'totalAkhirKg', 'transferCount',
+          'draftJson', 'updatedByUid', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'plantUnit', 'dateKey', 'dateLabel', 'shift', 'operatorName',
+          'nbNote', 'totalAwalKg', 'totalAkhirKg', 'transferCount',
+          'draftJson', 'updatedByUid', 'updatedAt'
+        ])
+        && data.plantUnit == 'FAC-TEXTURIZING'
+        && data.dateKey is string && data.dateKey.size() >= 1 && data.dateKey.size() <= 20
+        && data.dateLabel is string && data.dateLabel.size() >= 1 && data.dateLabel.size() <= 80
+        && isValidShift(data.shift)
+        && data.operatorName is string && data.operatorName.size() <= 120
+        && data.nbNote is string && data.nbNote.size() <= 2000
+        && data.totalAwalKg is int && data.totalAwalKg >= 0 && data.totalAwalKg <= 50000000
+        && data.totalAkhirKg is int && data.totalAkhirKg >= 0 && data.totalAkhirKg <= 50000000
+        && data.transferCount is int && data.transferCount >= 0 && data.transferCount <= 200
+        && data.draftJson is string && data.draftJson.size() >= 2 && data.draftJson.size() <= 60000
+        && data.updatedByUid is string && data.updatedByUid == request.auth.uid
+        && data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /current_tank_stocks/{tankDocId} {
+      allow get: if isSignedIn() && existing().plantUnit == 'FAC-TEXTURIZING';
+      allow list: if isSignedIn() && resource.data.plantUnit == 'FAC-TEXTURIZING';
+      allow create: if isSignedIn()
+        && isValidId(tankDocId)
+        && isValidCurrentTankStock(incoming());
+      allow update: if isSignedIn()
+        && isValidId(tankDocId)
+        && existing().plantUnit == 'FAC-TEXTURIZING'
+        && isValidCurrentTankStock(incoming())
+        && incoming().tankId == existing().tankId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'product', 'soundingCm', 'tableLevelCm', 'highLevelCm',
+          'totalVolumeL', 'totalStockKg', 'tonase', 'temp', 'density',
+          'vcf', 'manualKg', 'note', 'lastShift', 'lastOperator',
+          'dateKey', 'updatedByUid', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    match /sounding_history/{entryId} {
+      allow get: if isSignedIn() && existing().plantUnit == 'FAC-TEXTURIZING';
+      allow list: if isSignedIn() && resource.data.plantUnit == 'FAC-TEXTURIZING';
+      allow create: if isSignedIn()
+        && isValidId(entryId)
+        && isValidSoundingHistory(incoming());
+      allow update: if false;
+      allow delete: if isSignedIn()
+        && existing().plantUnit == 'FAC-TEXTURIZING'
+        && existing().userId == request.auth.uid;
+    }
+
+    match /shift_reports/{reportId} {
+      allow get: if isSignedIn() && existing().plantUnit == 'FAC-TEXTURIZING';
+      allow list: if isSignedIn() && resource.data.plantUnit == 'FAC-TEXTURIZING';
+      allow create: if isSignedIn()
+        && isValidId(reportId)
+        && isValidShiftReport(incoming());
+      allow update: if isSignedIn()
+        && isValidId(reportId)
+        && existing().plantUnit == 'FAC-TEXTURIZING'
+        && isValidShiftReport(incoming())
+        && incoming().dateKey == existing().dateKey
+        && incoming().shift == existing().shift
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'dateLabel', 'operatorName', 'nbNote', 'totalAwalKg',
+          'totalAkhirKg', 'transferCount', 'draftJson', 'updatedByUid', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+  }
+}

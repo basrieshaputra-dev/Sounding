@@ -19,6 +19,52 @@ object CalibrationEngine {
     private const val ASSET_FILE_NAME = "calibration_data.json"
     private const val THERMAL_EXPANSION_COEFF = 0.0000348
 
+    private val LEGACY_PRODUCT_NAME_MAP = mapOf(
+        "STEARIN (RPS)" to "RBDPS",
+        "RHBDPKL MP 32-38" to "RHBDPKL",
+        "RHBDPKO MP 34-36" to "RHBDPKO"
+    )
+
+    val DEFAULT_FAVORITE_PRODUCTS: List<String> = listOf(
+        "RBDPO",
+        "RBDPS",
+        "RHBDPKS",
+        "RHBDPKO",
+        "RHBDPKL"
+    )
+
+    private val DEFAULT_FAVORITE_RANK: Map<String, Int> =
+        DEFAULT_FAVORITE_PRODUCTS.withIndex().associate { (index, name) -> name to index }
+
+    fun normalizeProductName(raw: String): String {
+        val trimmed = raw.trim()
+        return LEGACY_PRODUCT_NAME_MAP[trimmed] ?: trimmed
+    }
+
+    fun sortProductsWithFavorites(
+        products: List<String>,
+        favoriteProducts: Set<String>
+    ): List<String> {
+        val defaultFavs = mutableListOf<String>()
+        val otherFavs = mutableListOf<String>()
+        val nonFavs = mutableListOf<String>()
+
+        for (product in products) {
+            if (product in favoriteProducts) {
+                if (product in DEFAULT_FAVORITE_RANK) {
+                    defaultFavs.add(product)
+                } else {
+                    otherFavs.add(product)
+                }
+            } else {
+                nonFavs.add(product)
+            }
+        }
+
+        defaultFavs.sortBy { DEFAULT_FAVORITE_RANK[it] ?: Int.MAX_VALUE }
+        return defaultFavs + otherFavs + nonFavs
+    }
+
     @Volatile
     private var cachedDataset: CalibrationDataset? = null
 
@@ -209,7 +255,7 @@ object CalibrationEngine {
             capacityTon = tank.capacityTon,
             maxTableHeightCm = 0,
             maxTableVolL = 0.0,
-            product = product.trim(),
+            product = normalizeProductName(product),
             note = note.trim(),
             isManualKg = true,
             sounding = 0.0,
@@ -291,20 +337,10 @@ object CalibrationEngine {
         val fractionVol = fractionCm * diffPerCm
         val totalVol = baseVol + fractionVol
 
-        val prodDensities = dataset.densityTable[product].orEmpty()
-        val tempInt = floor(temp).toInt()
-        var density = 0.0
-        val exactDensity = prodDensities[tempInt]
-        if (exactDensity != null) {
-            density = exactDensity
-        } else if (prodDensities.isNotEmpty()) {
-            val tKeys = prodDensities.keys.sorted()
-            var nearest = tKeys.first()
-            for (tk in tKeys) {
-                if (tk <= tempInt) nearest = tk else break
-            }
-            density = prodDensities[nearest] ?: 0.0
-            warnings.add("Suhu ${tempInt}°C memakai density suhu terdekat (${nearest}°C).")
+        val normalizedProduct = normalizeProductName(product)
+        val (density, densityWarning) = resolveDensity(dataset, normalizedProduct, temp)
+        if (densityWarning != null) {
+            warnings.add(densityWarning)
         }
 
         val vcf = ((temp - tank.tRef) * THERMAL_EXPANSION_COEFF) + 1.0
@@ -332,7 +368,7 @@ object CalibrationEngine {
             capacityTon = tank.capacityTon,
             maxTableHeightCm = maxTableHeight,
             maxTableVolL = maxTableVol,
-            product = product,
+            product = normalizedProduct,
             sounding = sounding,
             tableLevel = tank.tableLevel,
             highLevel = highLevel,
@@ -353,5 +389,134 @@ object CalibrationEngine {
             levelFillRatio = levelFillRatio,
             levelFillPercent = levelFillPercent
         )
+    }
+
+    /**
+     * Reverse-calculates Sounding Level (cm) from a target Total Stock (kg) using the active
+     * product density, VCF at [temp], and the tank's calibration table (including fractional cm
+     * linear interpolation).
+     */
+    fun calculateSoundingFromStockKg(
+        dataset: CalibrationDataset,
+        tank: TankSpec,
+        product: String,
+        targetStockKg: Double,
+        temp: Double
+    ): Double? {
+        if (tank.isManualKg || !targetStockKg.isFinite() || targetStockKg < 0.0) return null
+        val table = dataset.calibrationTables[tank.calTable] ?: return null
+        val sortedKeys = table.sortedKeys
+        if (sortedKeys.isEmpty()) return null
+
+        val (density, _) = resolveDensity(dataset, product, temp)
+        val vcf = ((temp - tank.tRef) * THERMAL_EXPANSION_COEFF) + 1.0
+        val factor = density * vcf
+        if (factor <= 0.0 || !factor.isFinite()) return null
+
+        val targetTotalVol = targetStockKg / factor
+        val highLevel = findHighLevelForVolume(table, targetTotalVol)
+        val rawSounding = highLevel - tank.tableLevel
+        val rounded = (rawSounding * 100.0).roundToLong() / 100.0
+        return if (rounded == 0.0) 0.0 else rounded
+    }
+
+    private fun resolveDensity(
+        dataset: CalibrationDataset,
+        product: String,
+        temp: Double
+    ): Pair<Double, String?> {
+        val normalizedProduct = normalizeProductName(product)
+        val prodDensities = dataset.densityTable[normalizedProduct].orEmpty()
+        val tempInt = floor(temp).toInt()
+        val exactDensity = prodDensities[tempInt]
+        if (exactDensity != null) {
+            return exactDensity to null
+        }
+        if (prodDensities.isNotEmpty()) {
+            val tKeys = prodDensities.keys.sorted()
+            var nearest = tKeys.first()
+            for (tk in tKeys) {
+                if (tk <= tempInt) nearest = tk else break
+            }
+            val density = prodDensities[nearest] ?: 0.0
+            return density to "Suhu ${tempInt}°C memakai density suhu terdekat (${nearest}°C)."
+        }
+        return 0.0 to null
+    }
+
+    private fun findHighLevelForVolume(
+        table: CalibrationTable,
+        targetTotalVol: Double
+    ): Double {
+        val sortedKeys = table.sortedKeys
+        val entries = table.entries
+        val firstKey = sortedKeys.first()
+        val firstEntry = entries[firstKey] ?: return 0.0
+        val lastKey = sortedKeys.last()
+        val lastEntry = entries[lastKey] ?: return firstKey.toDouble()
+
+        if (targetTotalVol <= 0.0) {
+            return 0.0
+        }
+
+        if (targetTotalVol < firstEntry.baseVol) {
+            return if (firstEntry.baseVol > 0.0) {
+                (targetTotalVol / firstEntry.baseVol) * firstKey.toDouble()
+            } else {
+                firstKey.toDouble()
+            }
+        }
+
+        if (targetTotalVol >= lastEntry.baseVol) {
+            val excessVol = targetTotalVol - lastEntry.baseVol
+            if (excessVol <= 0.0) return lastKey.toDouble()
+            val extrapDiff = when {
+                lastEntry.diffPerCm > 0.0 -> lastEntry.diffPerCm
+                sortedKeys.size >= 2 -> entries[sortedKeys[sortedKeys.size - 2]]?.diffPerCm ?: 0.0
+                else -> 0.0
+            }
+            return if (extrapDiff > 0.0) {
+                lastKey.toDouble() + (excessVol / extrapDiff)
+            } else {
+                lastKey.toDouble()
+            }
+        }
+
+        // Find highest index where baseVol <= targetTotalVol
+        var matchedIdx = 0
+        for (i in sortedKeys.indices) {
+            val vol = entries[sortedKeys[i]]?.baseVol ?: continue
+            if (vol <= targetTotalVol) {
+                matchedIdx = i
+            } else {
+                break
+            }
+        }
+
+        val baseKey = sortedKeys[matchedIdx]
+        val baseEntry = entries[baseKey] ?: return baseKey.toDouble()
+        val nextKey = sortedKeys.getOrNull(matchedIdx + 1)
+        val nextEntry = nextKey?.let { entries[it] }
+        val remainderVol = (targetTotalVol - baseEntry.baseVol).coerceAtLeast(0.0)
+        val keySpan = if (nextKey != null) (nextKey - baseKey).toDouble() else 1.0
+
+        val fractionCm = when {
+            baseEntry.diffPerCm > 0.0 -> {
+                val rawFrac = remainderVol / baseEntry.diffPerCm
+                if (rawFrac < keySpan || nextEntry == null) {
+                    rawFrac
+                } else {
+                    val volSpan = nextEntry.baseVol - baseEntry.baseVol
+                    if (volSpan > 0.0) (remainderVol / volSpan) * keySpan else keySpan
+                }
+            }
+            nextEntry != null -> {
+                val volSpan = nextEntry.baseVol - baseEntry.baseVol
+                if (volSpan > 0.0) (remainderVol / volSpan) * keySpan else 0.0
+            }
+            else -> 0.0
+        }.coerceIn(0.0, keySpan)
+
+        return baseKey.toDouble() + fractionCm
     }
 }

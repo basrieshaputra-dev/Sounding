@@ -64,6 +64,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.model.SoundingCalculation
 import com.example.ui.SoundingUiState
@@ -82,6 +83,8 @@ fun CalculatorScreen(
     onToggleFavoriteProduct: (String) -> Unit,
     onSoundingChanged: (String) -> Unit,
     onTempChanged: (String) -> Unit,
+    onDiagramStockKgChanged: (String) -> Unit,
+    onDiagramStockKgEditDone: () -> Unit,
     onManualKgChanged: (String) -> Unit,
     onManualNoteChanged: (String) -> Unit,
     onResetInput: () -> Unit,
@@ -534,7 +537,12 @@ fun CalculatorScreen(
                 if (calc != null) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (!calc.isManualKg) {
-                            VerticalCylinderTankDiagram(calc = calc)
+                            VerticalCylinderTankDiagram(
+                                calc = calc,
+                                stockKgEditInput = uiState.diagramStockKgInput,
+                                onStockKgChanged = onDiagramStockKgChanged,
+                                onStockKgEditDone = onDiagramStockKgEditDone
+                            )
                         }
 
                         CalculationResultCard(calc = calc)
@@ -672,25 +680,42 @@ private fun CalculationResultCard(calc: SoundingCalculation) {
                 textAlign = TextAlign.Center
             )
 
-            // Primary Hero Metrics (kg & MT)
+            // Primary Hero Metrics
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                MetricBox(
-                    label = stringResource(R.string.metric_stock_kg),
-                    value = "${SoundingFormatters.formatIndonesianInteger(calc.stockKg)} kg",
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("metric_stock_kg")
-                )
-                MetricBox(
-                    label = stringResource(R.string.metric_stock_ton),
-                    value = "${SoundingFormatters.formatTon(calc.stockTon)} Ton",
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("metric_stock_ton")
-                )
+                if (calc.isManualKg) {
+                    MetricBox(
+                        label = stringResource(R.string.metric_stock_kg),
+                        value = "${SoundingFormatters.formatIndonesianInteger(calc.stockKg)} kg",
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("metric_stock_kg")
+                    )
+                    MetricBox(
+                        label = stringResource(R.string.metric_stock_ton),
+                        value = "${SoundingFormatters.formatTon(calc.stockTon)} Ton",
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("metric_stock_ton")
+                    )
+                } else {
+                    MetricBox(
+                        label = stringResource(R.string.metric_total_volume),
+                        value = "${SoundingFormatters.formatIndonesianNumber(calc.totalVol)} L",
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("metric_total_volume")
+                    )
+                    MetricBox(
+                        label = stringResource(R.string.metric_stock_kg),
+                        value = "${SoundingFormatters.formatIndonesianInteger(calc.stockKg)} kg",
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("metric_stock_kg")
+                    )
+                }
             }
 
             HorizontalDivider(color = extras.metricCardBorder, thickness = 1.dp)
@@ -757,6 +782,10 @@ private fun CalculationResultCard(calc: SoundingCalculation) {
                         ),
                         value = SoundingFormatters.formatFixed(calc.vcf, 7)
                     )
+                    DetailRow(
+                        label = stringResource(R.string.metric_stock_ton),
+                        value = "${SoundingFormatters.formatTon(calc.stockTon)} Ton"
+                    )
                 }
             }
         }
@@ -770,6 +799,11 @@ private fun MetricBox(
     modifier: Modifier = Modifier
 ) {
     val extras = SoundingThemeExtras.colors
+    val metricTextStyle = when {
+        value.length >= 13 -> MonoTypography.heroMetric.copy(fontSize = 16.sp, lineHeight = 22.sp)
+        value.length >= 11 -> MonoTypography.heroMetric.copy(fontSize = 18.sp, lineHeight = 24.sp)
+        else -> MonoTypography.heroMetric
+    }
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.medium,
@@ -792,7 +826,7 @@ private fun MetricBox(
             )
             Text(
                 text = value,
-                style = MonoTypography.heroMetric,
+                style = metricTextStyle,
                 color = extras.metricValueInk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis

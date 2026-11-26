@@ -8,6 +8,7 @@
     <string name="tab_calculator">Hitung Sounding</string>
     <string name="tab_history">Riwayat &amp; Rekap</string>
     <string name="tab_history_with_count">Riwayat (%1$d)</string>
+    <string name="tab_about">About</string>
 
     <!-- Calculator Form -->
     <string name="section_input_title">Parameter Sounding</string>
@@ -18,7 +19,7 @@
     <string name="placeholder_sounding">Contoh: 401 atau 729.7</string>
     <string name="label_temp">Suhu (°C)</string>
     <string name="placeholder_temp">30</string>
-    <string name="tank_meta_format">Meja: %1$s cm • Ref: %2$s°C • Kap: %3$d MT</string>
+    <string name="tank_meta_format">Meja: %1$s cm • Ref: %2$s°C • Kap: %3$d Ton</string>
     <string name="tank_manual_meta">Mode Input Manual (kg) • Non-Kalibrasi</string>
     <string name="label_manual_kg">Input Manual Stok (kg)</string>
     <string name="placeholder_manual_kg">Contoh: 18500</string>
@@ -41,14 +42,18 @@
     <string name="diagram_card_title">Diagram Tangki Silinder</string>
     <string name="diagram_max_height_format">Maks: %1$d cm</string>
     <string name="diagram_label_high_level">High Level</string>
+    <string name="diagram_label_table_vol">Volume Tabel (L)</string>
+    <string name="diagram_label_total_stock">Total Stock (kg)</string>
     <string name="diagram_label_fill_percent">Persentase Isi</string>
     <string name="diagram_label_temp">Suhu Minyak</string>
     <string name="diagram_ref_temp_format">Ref: %1$s°C</string>
     <string name="diagram_overfill_badge">Melebihi Kapasitas</string>
-    <string name="cd_tank_diagram">Diagram tangki silinder %1$s, isi %2$s persen, High Level %3$s cm, suhu %4$s derajat Celsius</string>
+    <string name="cd_tank_diagram">Diagram tangki silinder %1$s, volume tabel %2$s liter, total stok %3$s kilogram, suhu %4$s derajat Celsius</string>
+    <string name="cd_edit_total_stock">Edit Total Stock dalam kilogram</string>
 
     <!-- Results Card -->
     <string name="result_card_title">Hasil Perhitungan Stok</string>
+    <string name="metric_total_volume">Total Volume (L)</string>
     <string name="metric_stock_kg">Total Stock (kg)</string>
     <string name="metric_stock_ton">Tonase (MT)</string>
     <string name="detail_high_level">High Level (Cm)</string>
@@ -133,4 +138,167 @@
     <string name="theme_dark_label">Gelap</string>
     <string name="cd_switch_to_dark">Beralih ke Tema Gelap</string>
     <string name="cd_switch_to_light">Beralih ke Tema Terang</string>
+    <string name="cd_open_about">Buka halaman About aplikasi</string>
+
+    <!-- About Screen -->
+    <string name="about_company_identity">PT Permata Hijau Palm Oleo – Belawan (Permata Group)</string>
+    <string name="about_caption_trial">Aplikasi Alat Bantu Operasional Sounding &amp; Laporan Harian (Trial)</string>
+    <string name="about_caption_tagline">Kalkulator Volume, Tonase &amp; Laporan Harian</string>
+    <string name="about_section_functions">Ringkasan Fungsi Aplikasi</string>
+    <string name="about_feat_volume_title">Volume &amp; Stok</string>
+    <string name="about_feat_volume_desc">Volume Tabel, Total Volume (L), Stok Kg &amp; Ton</string>
+    <string name="about_feat_vcf_title">VCF &amp; Density</string>
+    <string name="about_feat_vcf_desc">Koreksi suhu (VCF), density produk oil &amp; hitung balik</string>
+    <string name="about_feat_diagram_title">Diagram Tangki</string>
+    <string name="about_feat_diagram_desc">Visualisasi tangki Preblend &amp; Towertank 100% offline</string>
+    <string name="about_feat_report_title">Laporan Harian</string>
+    <string name="about_feat_report_desc">Simpan riwayat lokal, salin WA &amp; ekspor .JPG / CSV</string>
+    <string name="about_section_about_app">Tentang Aplikasi</string>
+    <string name="about_paragraph_main">Aplikasi ini dirancang untuk mendukung ketepatan dan kecepatan proses sounding serta pencatatan stok harian pada tangki Preblend dan Towertank berdasarkan Sertifikat Kalibrasi PT. Insurindo Inter Services, lengkap dengan perhitungan otomatis Volume Tabel, Total Volume (L), Density, VCF, Total Stock (kg), Tonase (Ton), diagram tangki visual, dan ekspor laporan harian.</string>
+    <string name="about_highlight_offline">Berjalan 100% offline di perangkat Android tanpa ketergantungan jaringan di area lapangan.</string>
+    <string name="about_highlight_reverse_calc">Perhitungan terintegrasi dengan tabel kalibrasi, density produk oil, dan faktor koreksi suhu (VCF) serta dukungan penyesuaian balik dari Total Stock (kg) ke Sounding Level (cm).</string>
+    <string name="about_section_developer">Dikembangkan &amp; Dideploy Oleh</string>
+    <string name="about_dev_label_name">Nama</string>
+    <string name="about_dev_value_name">Basri Syaputra</string>
+    <string name="about_dev_label_id">ID Karyawan</string>
+    <string name="about_dev_value_id">11536</string>
+    <string name="about_dev_label_unit">Departement</string>
+    <string name="about_dev_value_unit">FAC - SPECIALTY FATS - TEXTURIZING</string>
+    <string name="about_dev_label_status">Status Rilis</string>
+    <string name="about_dev_value_status">Versi Trial Operasional (100% Offline Android)</string>
+
+    <!-- Trial & License Activation -->
+    <string name="about_caption_licensed">Aplikasi Alat Bantu Operasional Sounding &amp; Laporan Harian (Lisensi Penuh)</string>
+    <string name="about_caption_trial_days">Aplikasi Alat Bantu Operasional Sounding &amp; Laporan Harian (Trial • Sisa %1$d Hari)</string>
+    <string name="about_dev_value_status_licensed">Lisensi Penuh Aktif Permanen (100% Offline Android)</string>
+    <string name="about_dev_value_status_trial">Masa Trial 60 Hari • Sisa %1$d Hari (100% Offline)</string>
+    <string name="about_section_license">Status Lisensi Aplikasi</string>
+    <string name="about_license_active_badge">Lisensi Aktif Permanen</string>
+    <string name="about_license_active_desc">Aplikasi berjalan penuh tanpa batas waktu pada perangkat ini.</string>
+    <string name="about_license_code_label">Kode Terdaftar</string>
+    <string name="about_license_date_label">Waktu Aktivasi</string>
+    <string name="about_license_trial_badge">Masa Trial 60 Hari • Sisa %1$d Hari</string>
+    <string name="about_license_trial_until">Berakhir pada %1$s</string>
+    <string name="about_license_action_enter_code">Masukkan Kode Aktivasi</string>
+    <string name="license_expired_badge">Masa Trial 60 Hari Berakhir</string>
+    <string name="license_expired_title">Aktivasi Lisensi Diperlukan</string>
+    <string name="license_expired_desc">Masa trial operasional 60 hari pada perangkat ini telah berakhir. Masukkan kode aktivasi resmi (berlaku 1 kali pakai) untuk membuka akses penuh secara permanen.</string>
+    <string name="license_sheet_title">Aktivasi Lisensi Permanen</string>
+    <string name="license_sheet_subtitle">Masukkan kode aktivasi resmi untuk mengaktifkan aplikasi secara permanen tanpa batas waktu. Setiap kode hanya berlaku 1 kali pakai di perangkat ini.</string>
+    <string name="license_input_label">Kode Aktivasi</string>
+    <string name="license_input_placeholder">Contoh: SPTF-8472</string>
+    <string name="license_single_use_hint">Setiap kode aktivasi hanya dapat digunakan 1 kali dan disimpan permanen di perangkat.</string>
+    <string name="license_action_activate">Aktifkan Lisensi Permanen</string>
+    <string name="license_error_empty">Masukkan kode aktivasi terlebih dahulu.</string>
+    <string name="license_error_used">Kode aktivasi %1$s sudah pernah digunakan di perangkat ini dan tidak berlaku lagi. Silakan hubungi Basri Syaputra (ID 11536).</string>
+    <string name="license_error_invalid">Kode aktivasi tidak berlaku / tidak terdaftar. Silakan periksa kembali atau hubungi Basri Syaputra (ID 11536).</string>
+    <string name="license_contact_title">Butuh Kode Aktivasi?</string>
+    <string name="license_contact_desc">Hubungi pengembang untuk mendapatkan kode aktivasi resmi:</string>
+    <string name="license_contact_id_badge">ID 11536</string>
+    <string name="msg_license_activated">Lisensi aktif permanen (%1$s). Aplikasi berjalan penuh tanpa batas waktu.</string>
+
+    <!-- Draft Laporan Shift -->
+    <string name="tab_draft">Draft</string>
+    <string name="tab_draft_full">Draft Laporan</string>
+    <string name="draft_subtab_summary">1. Ringkasan Stok &amp; TF</string>
+    <string name="draft_subtab_detail">2. Detail S Awal / Akhir</string>
+    <string name="draft_header_identity_title">Identitas Shift</string>
+    <string name="draft_label_shift">Shift</string>
+    <string name="draft_label_operator">Operator</string>
+    <string name="draft_placeholder_operator">Contoh: Arif, Basri</string>
+    <string name="draft_action_sync_history">Tarik Riwayat</string>
+    <string name="draft_action_reset">Reset Draft</string>
+    <string name="draft_action_export_jpg">Export Draft (.JPG)</string>
+    <string name="draft_section_stok_awal">Stok Awal</string>
+    <string name="draft_section_stok_awal_hint">Ketuk tangki untuk ubah nilai / Empty / -</string>
+    <string name="draft_section_tf">Daftar Transfer / Return (TF)</string>
+    <string name="draft_action_add_tf">Tambah Baris</string>
+    <string name="draft_tf_empty">Belum ada catatan transfer/return. Ketuk Tambah Baris untuk menambahkan.</string>
+    <string name="draft_section_nb">Catatan (Nb.)</string>
+    <string name="draft_placeholder_nb">Contoh: * Return Mt2 ke 177, Masuk Laporan Pagi, Qty: 1.521 kg</string>
+    <string name="draft_section_stok_akhir">Rekap Stok Akhir per Tangki</string>
+    <string name="draft_section_stok_akhir_hint">Ketuk baris untuk ubah stok akhir, produk &amp; keterangan</string>
+    <string name="draft_group_all">Semua (13)</string>
+    <string name="draft_group_preblend">Preblend (6)</string>
+    <string name="draft_group_towertank">Towertank &amp; T.50 (7)</string>
+    <string name="draft_detail_hint">Geser tabel ke kanan untuk melihat seluruh kolom • Ketuk tangki untuk edit S. Awal / S. Akhir</string>
+    <string name="draft_edit_tank_title">Edit Tangki %1$s</string>
+    <string name="draft_edit_tab_awal">S. Awal</string>
+    <string name="draft_edit_tab_akhir">S. Akhir</string>
+    <string name="draft_edit_pick_history">Pilih dari Riwayat (%1$d)</string>
+    <string name="draft_edit_set_empty">Isi Empty</string>
+    <string name="draft_edit_set_dash">Isi -</string>
+    <string name="draft_edit_oil_type">Jenis Oil / Produk</string>
+    <string name="draft_edit_summary_note">Keterangan Ringkas (Stok Akhir)</string>
+    <string name="draft_edit_summary_note_hint">Contoh: ok, produksi, belum sampel, Additive</string>
+    <string name="draft_edit_detail_note">Keterangan Tabel Detail</string>
+    <string name="draft_edit_detail_note_hint">Contoh: Tidak ada pergerakan, TF dari T.185</string>
+    <string name="draft_edit_sondingan">Sondingan (cm)</string>
+    <string name="draft_edit_mu">M.U (Meja Ukur)</string>
+    <string name="draft_edit_jml_mu">Jumlah M.U (cm)</string>
+    <string name="draft_edit_volume">Volume / Liter</string>
+    <string name="draft_edit_vcf">Faktor Koreksi (VCF)</string>
+    <string name="draft_edit_density">Density</string>
+    <string name="draft_edit_temp">Temp (°C)</string>
+    <string name="draft_edit_qty">Quantity (kg / Empty / -)</string>
+    <string name="draft_action_save">Simpan Perubahan</string>
+    <string name="draft_tf_dialog_add_title">Tambah Baris Transfer / Return</string>
+    <string name="draft_tf_dialog_edit_title">Edit Baris Transfer / Return</string>
+    <string name="draft_tf_label_jam">Jam</string>
+    <string name="draft_tf_hint_jam">Contoh: 24.00 - 05.35</string>
+    <string name="draft_tf_label_desc">Uraian TF / Return</string>
+    <string name="draft_tf_hint_desc">Contoh: TF Rpo 185 ke 172</string>
+    <string name="draft_tf_label_qty">Qty (kg)</string>
+    <string name="draft_tf_hint_qty">Contoh: 51.825</string>
+    <string name="draft_export_sheet_title">Export Draft Laporan Shift (.JPG)</string>
+    <string name="draft_export_sheet_desc">Merender gabungan Header Shift, Ringkasan Stok Awal &amp; Akhir, Daftar TF, Catatan Nb., serta Tabel Detail S. Awal / S. Akhir dalam satu gambar rapi siap bagikan.</string>
+    <string name="draft_reset_confirm_title">Reset Draft Laporan Shift?</string>
+    <string name="draft_reset_confirm_msg">Semua edit manual, daftar TF, dan catatan Nb. akan direset lalu ditarik ulang dari Riwayat saat ini.</string>
+    <string name="msg_draft_synced">Draft berhasil disinkronkan dengan data Riwayat</string>
+    <string name="msg_draft_reset">Draft shift direset dan dimuat ulang dari Riwayat</string>
+    <string name="msg_draft_jpg_saved">Draft Laporan Shift (.JPG) berhasil disimpan</string>
+    <string name="msg_draft_jpg_failed">Gagal membuat Draft Laporan Shift (.JPG)</string>
+    <string name="cd_edit_item">Edit item</string>
+    <string name="cd_sync_history">Tarik ulang data dari Riwayat</string>
+
+    <!-- Firebase Realtime Sync & Auth -->
+    <string name="status_online_realtime">ONLINE • REALTIME</string>
+    <string name="status_offline_local">OFFLINE • LOKAL</string>
+    <string name="status_pending_sync">Menunggu sinkronisasi cloud</string>
+    <string name="auth_card_title">Masuk Personel Operasional</string>
+    <string name="auth_card_subtitle">Gunakan akun Google untuk menyinkronkan stok tangki dan laporan kegiatan secara realtime lintas shift (Pagi, Sore, Malam).</string>
+    <string name="auth_feat_realtime">Stok tangki terkini tersinkron realtime antar shift</string>
+    <string name="auth_feat_offline">Tetap berjalan offline di area tangki &amp; otomatis sinkron</string>
+    <string name="auth_feat_cross_shift">Pantau riwayat sounding &amp; laporan shift sebelumnya</string>
+    <string name="auth_action_google_signin">Masuk dengan Google</string>
+    <string name="auth_signing_in">Menghubungkan akun…</string>
+    <string name="auth_error_generic">Gagal masuk dengan Google. Periksa koneksi internet dan coba lagi.</string>
+    <string name="auth_error_detail">Gagal masuk: %1$s</string>
+
+    <!-- Cross-Shift Monitoring & Filters -->
+    <string name="realtime_stocks_title">Stok Tangki Terkini (Realtime)</string>
+    <string name="realtime_stocks_subtitle">Status terakhir tangki lintas shift • otomatis diperbarui</string>
+    <string name="realtime_stocks_empty">Belum ada data stok tangki di cloud. Simpan perhitungan untuk memperbarui stok realtime.</string>
+    <string name="filter_section_title">Pantau Antar Shift</string>
+    <string name="filter_date_all">Semua Tanggal</string>
+    <string name="filter_shift_all">Semua</string>
+    <string name="filter_empty_result">Tidak ada catatan sounding untuk filter tanggal &amp; shift yang dipilih.</string>
+    <string name="badge_cloud_synced">Cloud</string>
+    <string name="badge_local_only">Lokal</string>
+    <string name="msg_cannot_delete_other_shift">Hanya catatan milik akun Anda sendiri yang dapat dihapus.</string>
+    <string name="draft_cloud_monitor_title">Pantau Laporan Shift Lain</string>
+    <string name="draft_cloud_monitor_empty">Belum ada laporan shift tersimpan di cloud untuk filter ini.</string>
+    <string name="draft_action_save_cloud">Simpan ke Cloud</string>
+    <string name="draft_viewing_other_banner">Menampilkan laporan cloud (%1$s • Shift %2$s)</string>
+    <string name="draft_action_back_today">Shift Aktif</string>
+    <string name="msg_draft_saved_cloud">Draft laporan shift tersimpan &amp; tersinkron ke cloud</string>
+    <string name="msg_draft_saved_offline">Draft disimpan lokal &amp; akan tersinkron otomatis saat online</string>
+    <string name="msg_loaded_shift_report">Memuat laporan %1$s • Shift %2$s</string>
+
+    <!-- Account Card on About Screen -->
+    <string name="about_section_account">Akun &amp; Sinkronisasi Cloud</string>
+    <string name="about_account_signed_in">Terhubung sebagai</string>
+    <string name="about_action_sign_out">Keluar Akun Google</string>
+    <string name="about_sign_out_confirm_title">Keluar dari Akun Google?</string>
+    <string name="about_sign_out_confirm_msg">Anda perlu masuk kembali untuk menyinkronkan data realtime antar shift.</string>
 </resources>

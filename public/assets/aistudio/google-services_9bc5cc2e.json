@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "896018140974",
+    "project_id": "sounding-tangki-realtime",
+    "storage_bucket": "sounding-tangki-realtime.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:896018140974:android:3ce98c5f0222b3db9534bf",
+        "android_client_info": {
+          "package_name": "com.aistudio.soundingtangki.ixuqmt"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKqL5yUtjP0BnWMXutStkB79FXDHPJn24"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

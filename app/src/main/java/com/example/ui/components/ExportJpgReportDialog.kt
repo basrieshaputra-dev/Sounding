@@ -63,16 +63,22 @@ import java.util.Calendar
 @Composable
 fun ExportJpgReportSheet(
     initialOperatorName: String,
+    latestLogEpochMs: Long? = null,
     onShareJpg: (DailyReportMetadata) -> Unit,
     onDownloadJpg: (DailyReportMetadata) -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val extras = SoundingThemeExtras.colors
+    val referenceEpochMs = remember(latestLogEpochMs) {
+        latestLogEpochMs ?: System.currentTimeMillis()
+    }
 
-    var dateLabel by remember { mutableStateOf(SoundingFormatters.formatReportDate()) }
-    var timeSlot by remember {
-        mutableStateOf(defaultTimeSlotForCurrentHour())
+    var dateLabel by remember(referenceEpochMs) {
+        mutableStateOf(SoundingFormatters.formatReportDate(referenceEpochMs))
+    }
+    var timeSlot by remember(referenceEpochMs) {
+        mutableStateOf(defaultTimeSlotForEpoch(referenceEpochMs))
     }
     var operatorName by remember { mutableStateOf(initialOperatorName) }
     var nextTransferId by remember { mutableLongStateOf(1L) }
@@ -87,7 +93,7 @@ fun ExportJpgReportSheet(
     )
 
     fun buildMetadata(): DailyReportMetadata = DailyReportMetadata(
-        dateLabel = dateLabel.trim().ifBlank { SoundingFormatters.formatReportDate() },
+        dateLabel = dateLabel.trim().ifBlank { SoundingFormatters.formatReportDate(referenceEpochMs) },
         timeSlot = timeSlot,
         operatorName = operatorName.trim(),
         transfers = transfers.toList()
@@ -368,8 +374,8 @@ fun ExportJpgReportSheet(
     }
 }
 
-private fun defaultTimeSlotForCurrentHour(): ReportTimeSlot {
-    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+private fun defaultTimeSlotForEpoch(epochMs: Long): ReportTimeSlot {
+    val hour = Calendar.getInstance().apply { timeInMillis = epochMs }.get(Calendar.HOUR_OF_DAY)
     return when {
         hour in 6..13 -> ReportTimeSlot.PAGI
         hour in 14..18 -> ReportTimeSlot.SORE

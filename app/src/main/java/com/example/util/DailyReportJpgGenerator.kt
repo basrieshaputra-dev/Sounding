@@ -15,6 +15,7 @@ import android.text.TextPaint
 import android.text.TextUtils
 import androidx.core.content.res.ResourcesCompat
 import com.example.R
+import com.example.data.CalibrationEngine
 import com.example.data.local.SoundingLogEntity
 import com.example.data.model.DailyReportMetadata
 import com.example.data.model.TransferLogItem
@@ -36,7 +37,9 @@ data class DailyReportSnapshot(
     val leftTotalKg: Long,
     val rightTotalKg: Long,
     val extraTotalKg: Long,
-    val grandTotalKg: Long
+    val grandTotalKg: Long,
+    val earliestLogEpochMs: Long? = null,
+    val latestLogEpochMs: Long? = null
 ) {
     val grandTotalTon: Double get() = grandTotalKg / 1000.0
 }
@@ -64,7 +67,12 @@ object DailyReportJpgGenerator {
         val latestByTank = LinkedHashMap<String, SoundingLogEntity>()
         for (log in logs) {
             if (!latestByTank.containsKey(log.tankId)) {
-                latestByTank[log.tankId] = log
+                val normalizedProduct = CalibrationEngine.normalizeProductName(log.product)
+                latestByTank[log.tankId] = if (normalizedProduct != log.product) {
+                    log.copy(product = normalizedProduct)
+                } else {
+                    log
+                }
             }
         }
 
@@ -84,6 +92,10 @@ object DailyReportJpgGenerator {
             it.jam.isNotBlank() || it.keterangan.isNotBlank() || it.qtyKg.isNotBlank()
         }
 
+        val recordedEpochs = latestByTank.values
+            .map { it.createdAtEpochMs }
+            .filter { it > 0L }
+
         return DailyReportSnapshot(
             metadata = metadata,
             leftRows = leftRows,
@@ -93,7 +105,9 @@ object DailyReportJpgGenerator {
             leftTotalKg = leftTotalKg,
             rightTotalKg = rightTotalKg,
             extraTotalKg = extraTotalKg,
-            grandTotalKg = leftTotalKg + rightTotalKg + extraTotalKg
+            grandTotalKg = leftTotalKg + rightTotalKg + extraTotalKg,
+            earliestLogEpochMs = recordedEpochs.minOrNull(),
+            latestLogEpochMs = recordedEpochs.maxOrNull()
         )
     }
 
@@ -137,9 +151,9 @@ object DailyReportJpgGenerator {
 
         val topStripeH = 14f
         val headerH = 142f
-        val metaCardH = 74f
+        val metaCardH = 78f
         val colHeaderH = 48f
-        val tankRowH = 74f
+        val tankRowH = 88f
         val subtotalRowH = 48f
 
         val maxTankRows = maxOf(snapshot.leftRows.size, snapshot.rightRows.size)
@@ -256,8 +270,18 @@ object DailyReportJpgGenerator {
         }
 
         val metaColW = (width - margin * 2) / 3f
-        val dateText = snapshot.metadata.dateLabel.ifBlank { SoundingFormatters.formatReportDate() }
-        val timeText = snapshot.metadata.timeSlot.label
+        val dateText = snapshot.metadata.dateLabel.ifBlank {
+            SoundingFormatters.formatReportDate(snapshot.latestLogEpochMs ?: System.currentTimeMillis())
+        }
+        val timeRange = SoundingFormatters.formatTimeRange(
+            earliestEpochMs = snapshot.earliestLogEpochMs,
+            latestEpochMs = snapshot.latestLogEpochMs
+        )
+        val timeText = if (timeRange.isNotEmpty()) {
+            "${snapshot.metadata.timeSlot.label} ($timeRange)"
+        } else {
+            snapshot.metadata.timeSlot.label
+        }
         val operatorText = snapshot.metadata.operatorName.ifBlank { "-" }
 
         drawMetaCell(canvas, margin + 20f, y, metaColW - 24f, "HARI & TANGGAL", dateText, metaLabelPaint, metaValPaint)
@@ -520,15 +544,21 @@ object DailyReportJpgGenerator {
 
         y += grandTotalH + 18f
 
-        // Footer credit
+        // Footer credit + timestamp reference
         val footerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = COLOR_INK_MUTED
             typeface = sansRegular
             textSize = 15f
             textAlign = Paint.Align.CENTER
         }
+        val refTimeText = if (snapshot.latestLogEpochMs != null) {
+            val latestFull = SoundingFormatters.formatDisplayDateTime(snapshot.latestLogEpochMs)
+            "Ref. Sounding Terakhir: $latestFull  •  Sounding Preblend & Towertank • App By. Basri syaputra ID 11536"
+        } else {
+            "Sounding Preblend & Towertank • FAC - SPECIALTY FATS - TEXTURIZING • App By. Basri syaputra ID 11536"
+        }
         canvas.drawText(
-            "Sounding Preblend & Towertank • FAC - SPECIALTY FATS - TEXTURIZING • App By. Basri syaputra ID 11536",
+            refTimeText,
             width / 2f,
             y + 24f,
             footerPaint
@@ -735,20 +765,20 @@ object DailyReportJpgGenerator {
             canvas.drawText(
                 "${SoundingFormatters.formatIndonesianInteger(log.stockKg)} kg",
                 stockRightX,
-                y + 32f,
+                y + 36f,
                 kgPaint
             )
             canvas.drawText(
                 "${SoundingFormatters.formatTon(log.stockKg / 1000.0)} Ton",
                 stockRightX,
-                y + 56f,
+                y + 62f,
                 tonPaint
             )
         } else {
-            canvas.drawText("-", stockRightX, y + 43f, kgPaint)
+            canvas.drawText("-", stockRightX, y + 49f, kgPaint)
         }
 
-        // Middle Product & Telemetry info
+        // Middle Product, Telemetry & Saved Date/Time info
         val midX = badgeRect.right + 12f
         val midMaxW = (stockRightX - stockAreaW - midX).coerceAtLeast(80f)
 
@@ -760,7 +790,12 @@ object DailyReportJpgGenerator {
         val metaPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = COLOR_INK_MUTED
             typeface = monoRegular
-            textSize = 14f
+            textSize = 13.5f
+        }
+        val timeStampPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = COLOR_DEEP_TEAL
+            typeface = monoRegular
+            textSize = 12.5f
         }
 
         val prodText = if (log != null) {
@@ -769,7 +804,7 @@ object DailyReportJpgGenerator {
             if (isManual) "Belum diisi (Manual kg)" else "Belum sounding"
         }
         val clippedProd = TextUtils.ellipsize(prodText, prodPaint, midMaxW, TextUtils.TruncateAt.END).toString()
-        canvas.drawText(clippedProd, midX, y + 32f, prodPaint)
+        canvas.drawText(clippedProd, midX, y + 29f, prodPaint)
 
         val detailText = when {
             log == null -> "-"
@@ -777,6 +812,12 @@ object DailyReportJpgGenerator {
             else -> "High: ${SoundingFormatters.formatFixed(log.highLevel, 1)} cm • ${SoundingFormatters.formatCompact(log.temp)}°C"
         }
         val clippedDetail = TextUtils.ellipsize(detailText, metaPaint, midMaxW, TextUtils.TruncateAt.END).toString()
-        canvas.drawText(clippedDetail, midX, y + 56f, metaPaint)
+        canvas.drawText(clippedDetail, midX, y + 51f, metaPaint)
+
+        if (log != null && log.createdAtEpochMs > 0L) {
+            val savedAt = SoundingFormatters.formatDisplayDateTime(log.createdAtEpochMs)
+            val clippedTime = TextUtils.ellipsize(savedAt, timeStampPaint, midMaxW, TextUtils.TruncateAt.END).toString()
+            canvas.drawText(clippedTime, midX, y + 72f, timeStampPaint)
+        }
     }
 }

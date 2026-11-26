@@ -13,6 +13,8 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.util.Calendar
+import java.util.TimeZone
 
 class CalibrationEngineTest {
 
@@ -43,6 +45,9 @@ class CalibrationEngineTest {
             val expectedTRef = if (tank.id in block101To122) 30.0 else 32.0
             assertEquals("Wrong tRef for ${tank.id}", expectedTRef, tank.tRef, 1e-6)
             assertEquals("Wrong isManualKg for ${tank.id}", tank.id == "T.50", tank.isManualKg)
+            if (tank.id in block101To122) {
+                assertEquals("Wrong capacityTon for ${tank.id}", 100, tank.capacityTon)
+            }
         }
     }
 
@@ -252,5 +257,246 @@ class CalibrationEngineTest {
         assertEquals(401.0, CalibrationEngine.parseDecimalInput(" 401 ")!!, 1e-9)
         assertEquals(null, CalibrationEngine.parseDecimalInput(""))
         assertEquals(null, CalibrationEngine.parseDecimalInput("."))
+    }
+
+    @Test
+    fun reverseCalculatesExactSoundingFromStockKgOnT121AndT171() {
+        val dataset = loadDataset()
+
+        // T.171 at 50°C with fractional cm (sounding 729.7 -> highLevel 761.3 -> 140439 kg)
+        val t171 = dataset.tanks.first { it.id == "T.171" }
+        val reversedT171 = CalibrationEngine.calculateSoundingFromStockKg(
+            dataset = dataset,
+            tank = t171,
+            product = "RBDPO",
+            targetStockKg = 140439.0,
+            temp = 50.0
+        )
+        assertNotNull(reversedT171)
+        assertEquals(729.7, reversedT171!!, 0.01)
+
+        // T.121 at 30°C (negative tableLevel -3.0)
+        val t121 = dataset.tanks.first { it.id == "T.121" }
+        val forwardT121 = CalibrationEngine.calculate(
+            dataset = dataset,
+            tank = t121,
+            product = "RBDPO",
+            sounding = 730.0,
+            temp = 30.0
+        )
+        val reversedT121 = CalibrationEngine.calculateSoundingFromStockKg(
+            dataset = dataset,
+            tank = t121,
+            product = "RBDPO",
+            targetStockKg = forwardT121.stockKg.toDouble(),
+            temp = 30.0
+        )
+        assertNotNull(reversedT121)
+        assertEquals(730.0, reversedT121!!, 0.01)
+
+        // Arbitrary stock kg on T.121 -> reverse sounding -> forward calc stays synchronized
+        val arbitraryKg = 50_000.0
+        val reversedArbitrary = CalibrationEngine.calculateSoundingFromStockKg(
+            dataset = dataset,
+            tank = t121,
+            product = "RBDPO",
+            targetStockKg = arbitraryKg,
+            temp = 30.0
+        )
+        assertNotNull(reversedArbitrary)
+        val forwardCheck = CalibrationEngine.calculate(
+            dataset = dataset,
+            tank = t121,
+            product = "RBDPO",
+            sounding = reversedArbitrary!!,
+            temp = 30.0
+        )
+        assertTrue(kotlin.math.abs(forwardCheck.stockKg - 50_000L) <= 2L)
+
+        // Zero kg yields sounding = -tableLevel (highLevel = 0.0)
+        val zeroSounding = CalibrationEngine.calculateSoundingFromStockKg(
+            dataset = dataset,
+            tank = t121,
+            product = "RBDPO",
+            targetStockKg = 0.0,
+            temp = 30.0
+        )
+        assertEquals(3.0, zeroSounding!!, 1e-6)
+    }
+
+    @Test
+    fun classifiesPreblendAndTowerTankDiagramShapesAccurately() {
+        val preblendIds = listOf("T.101", "T.111", "T.102", "T.112", "T.121", "T.122")
+        val towerIds = listOf(
+            "T.171", "T.172", "T.173", "T.174", "T.175", "T.176",
+            "T.177", "T.178", "T.179", "T.180", "T.181", "T.182"
+        )
+        for (id in preblendIds) {
+            assertFalse("Expected $id to use Preblend silhouette", com.example.ui.components.isTowerTank(id))
+        }
+        for (id in towerIds) {
+            assertTrue("Expected $id to use Tower tank silhouette", com.example.ui.components.isTowerTank(id))
+        }
+    }
+
+    @Test
+    fun renamesProductLabelsWithoutAlteringDensityOrLegacyCompatibility() {
+        val dataset = loadDataset()
+        assertEquals(25, dataset.productNames.size)
+
+        // New labels exist
+        assertTrue(dataset.densityTable.containsKey("RBDPS"))
+        assertTrue(dataset.densityTable.containsKey("RHBDPKL"))
+        assertTrue(dataset.densityTable.containsKey("RHBDPKO"))
+
+        // Old labels removed from product list
+        assertFalse(dataset.densityTable.containsKey("STEARIN (RPS)"))
+        assertFalse(dataset.densityTable.containsKey("RHBDPKL MP 32-38"))
+        assertFalse(dataset.densityTable.containsKey("RHBDPKO MP 34-36"))
+
+        // Unrelated MP variants remain intact
+        assertTrue(dataset.densityTable.containsKey("RHBDPKL MP 38-42"))
+        assertTrue(dataset.densityTable.containsKey("RHBDPKO MP 36-42"))
+
+        // Density tables remain intact and non-empty
+        assertTrue(dataset.densityTable["RBDPS"]!!.isNotEmpty())
+        assertTrue(dataset.densityTable["RHBDPKL"]!!.isNotEmpty())
+        assertTrue(dataset.densityTable["RHBDPKO"]!!.isNotEmpty())
+
+        // Legacy names normalize cleanly for favorites, history, and calculation lookups
+        assertEquals("RBDPS", CalibrationEngine.normalizeProductName("STEARIN (RPS)"))
+        assertEquals("RHBDPKL", CalibrationEngine.normalizeProductName("RHBDPKL MP 32-38"))
+        assertEquals("RHBDPKO", CalibrationEngine.normalizeProductName("RHBDPKO MP 34-36"))
+        assertEquals("RHBDPKO MP 36-42", CalibrationEngine.normalizeProductName("RHBDPKO MP 36-42"))
+
+        val t101 = dataset.tanks.first { it.id == "T.101" }
+        val calcNew = CalibrationEngine.calculate(dataset, t101, "RBDPS", 400.0, 50.0)
+        val calcLegacy = CalibrationEngine.calculate(dataset, t101, "STEARIN (RPS)", 400.0, 50.0)
+        assertEquals("RBDPS", calcNew.product)
+        assertEquals("RBDPS", calcLegacy.product)
+        assertEquals(calcNew.density, calcLegacy.density, 1e-9)
+        assertEquals(calcNew.stockKg, calcLegacy.stockKg)
+
+        // Exports normalize legacy log records too
+        val legacyLog = SoundingLogEntity(
+            id = 99,
+            timestampIso = "2026-11-25T10:00:00Z",
+            createdAtEpochMs = 9999L,
+            tankId = "T.101",
+            product = "RHBDPKL MP 32-38",
+            sounding = 400.0,
+            tableLevel = -2.5,
+            highLevel = 397.5,
+            temp = 45.0,
+            totalVol = 50000.0,
+            density = 0.905,
+            vcf = 1.0,
+            stockKg = 45250L,
+            stockTon = 45.25
+        )
+        assertTrue(SoundingFormatters.formatLogWhatsAppSummary(legacyLog).contains("| RHBDPKL |"))
+        assertTrue(SoundingFormatters.buildCsvContent(listOf(legacyLog)).contains("\"RHBDPKL\""))
+        val snapshot = DailyReportJpgGenerator.buildReportSnapshot(
+            listOf(legacyLog),
+            DailyReportMetadata("Rabu, 25 Nov 26", ReportTimeSlot.PAGI, "Basri", emptyList())
+        )
+        assertEquals("RHBDPKL", snapshot.leftRows.first { it.tankId == "T.101" }.log?.product)
+    }
+
+    @Test
+    fun placesDefaultFavoritesInExactFixedOrderAtTopOfProductPicker() {
+        val dataset = loadDataset()
+        val defaultFavorites = CalibrationEngine.DEFAULT_FAVORITE_PRODUCTS.toSet()
+
+        val sorted = CalibrationEngine.sortProductsWithFavorites(
+            products = dataset.productNames,
+            favoriteProducts = defaultFavorites
+        )
+
+        val expectedTopFive = listOf("RBDPO", "RBDPS", "RHBDPKS", "RHBDPKO", "RHBDPKL")
+        assertEquals(expectedTopFive, sorted.take(5))
+        assertEquals(dataset.productNames.size, sorted.size)
+
+        // Adding another custom favorite keeps the 5 default favorites in exact 1..5 order first
+        val withExtraFavorite = CalibrationEngine.sortProductsWithFavorites(
+            products = dataset.productNames,
+            favoriteProducts = defaultFavorites + "CPO"
+        )
+        assertEquals(expectedTopFive, withExtraFavorite.take(5))
+        assertEquals("CPO", withExtraFavorite[5])
+    }
+
+    @Test
+    fun formatsDeviceTimestampsAndSyncsToCsvWaAndJpgSnapshot() {
+        val wib = TimeZone.getTimeZone("Asia/Jakarta")
+        val earlyEpoch = Calendar.getInstance(wib).apply {
+            set(2026, Calendar.NOVEMBER, 26, 7, 15, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val lateEpoch = Calendar.getInstance(wib).apply {
+            set(2026, Calendar.NOVEMBER, 26, 15, 42, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        assertEquals("Kam, 26 Nov 2026", SoundingFormatters.formatLocalDate(earlyEpoch, wib))
+        assertEquals("07:15", SoundingFormatters.formatLocalTime(earlyEpoch, wib))
+        assertEquals("Kam, 26 Nov 2026 • 07:15", SoundingFormatters.formatDisplayDateTime(earlyEpoch, wib))
+        assertEquals("Kamis, 26 Nov 2026", SoundingFormatters.formatReportDate(earlyEpoch, wib))
+        assertEquals("07:15", SoundingFormatters.formatTimeRange(earlyEpoch, earlyEpoch, wib))
+        assertEquals("07:15 – 15:42", SoundingFormatters.formatTimeRange(earlyEpoch, lateEpoch, wib))
+
+        val earlyLog = SoundingLogEntity(
+            id = 10,
+            timestampIso = SoundingFormatters.formatIsoUtc(earlyEpoch),
+            createdAtEpochMs = earlyEpoch,
+            tankId = "T.101",
+            product = "RBDPO",
+            sounding = 400.0,
+            tableLevel = -2.5,
+            highLevel = 397.5,
+            temp = 45.0,
+            totalVol = 50000.0,
+            density = 0.905,
+            vcf = 1.0,
+            stockKg = 45250L,
+            stockTon = 45.25
+        )
+        val lateLog = SoundingLogEntity(
+            id = 11,
+            timestampIso = SoundingFormatters.formatIsoUtc(lateEpoch),
+            createdAtEpochMs = lateEpoch,
+            tankId = "T.171",
+            product = "RBDPS",
+            sounding = 700.0,
+            tableLevel = 31.6,
+            highLevel = 731.6,
+            temp = 50.0,
+            totalVol = 150000.0,
+            density = 0.890,
+            vcf = 1.0006,
+            stockKg = 133580L,
+            stockTon = 133.58
+        )
+
+        val csv = SoundingFormatters.buildCsvContent(listOf(lateLog, earlyLog), wib)
+        val csvLines = csv.lines()
+        assertTrue(csvLines.first().startsWith("Tanggal,Jam,Waktu_Lengkap,Tangki,Produk"))
+        assertTrue(csvLines[1].startsWith("\"Kam, 26 Nov 2026\",15:42,\"Kam, 26 Nov 2026 • 15:42\",T.171"))
+        assertTrue(csvLines[2].startsWith("\"Kam, 26 Nov 2026\",07:15,\"Kam, 26 Nov 2026 • 07:15\",T.101"))
+
+        val waSummary = SoundingFormatters.formatLogWhatsAppSummary(earlyLog, wib)
+        assertTrue(waSummary.endsWith("| Kam, 26 Nov 2026 • 07:15"))
+
+        val snapshot = DailyReportJpgGenerator.buildReportSnapshot(
+            logs = listOf(lateLog, earlyLog),
+            metadata = DailyReportMetadata(
+                dateLabel = "Kamis, 26 Nov 2026",
+                timeSlot = ReportTimeSlot.PAGI,
+                operatorName = "Basri",
+                transfers = emptyList()
+            )
+        )
+        assertEquals(earlyEpoch, snapshot.earliestLogEpochMs)
+        assertEquals(lateEpoch, snapshot.latestLogEpochMs)
     }
 }

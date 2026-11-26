@@ -1,0 +1,154 @@
+{
+  "entities": {
+    "CurrentTankStock": {
+      "title": "CurrentTankStock",
+      "description": "Latest realtime stock status per tank (T.101..T.122, T.171..T.177, T.50) shared across shifts",
+      "type": "object",
+      "properties": {
+        "plantUnit": { "type": "string", "enum": ["FAC-TEXTURIZING"] },
+        "tankId": { "type": "string" },
+        "product": { "type": "string" },
+        "soundingCm": { "type": "number" },
+        "tableLevelCm": { "type": "number" },
+        "highLevelCm": { "type": "number" },
+        "totalVolumeL": { "type": "number" },
+        "totalStockKg": { "type": "integer" },
+        "tonase": { "type": "number" },
+        "temp": { "type": "number" },
+        "density": { "type": "number" },
+        "vcf": { "type": "number" },
+        "manualKg": { "type": "boolean" },
+        "note": { "type": "string" },
+        "lastShift": { "type": "string", "enum": ["Pagi", "Sore", "Malam"] },
+        "lastOperator": { "type": "string" },
+        "dateKey": { "type": "string" },
+        "updatedByUid": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "plantUnit",
+        "tankId",
+        "product",
+        "soundingCm",
+        "tableLevelCm",
+        "highLevelCm",
+        "totalVolumeL",
+        "totalStockKg",
+        "tonase",
+        "temp",
+        "density",
+        "vcf",
+        "manualKg",
+        "note",
+        "lastShift",
+        "lastOperator",
+        "dateKey",
+        "updatedByUid",
+        "updatedAt"
+      ]
+    },
+    "SoundingHistoryEntry": {
+      "title": "SoundingHistoryEntry",
+      "description": "Immutable sounding calculation record saved by shift personnel",
+      "type": "object",
+      "properties": {
+        "plantUnit": { "type": "string", "enum": ["FAC-TEXTURIZING"] },
+        "userId": { "type": "string" },
+        "dateKey": { "type": "string" },
+        "dateLabel": { "type": "string" },
+        "timeLabel": { "type": "string" },
+        "shift": { "type": "string", "enum": ["Pagi", "Sore", "Malam"] },
+        "operatorName": { "type": "string" },
+        "tankId": { "type": "string" },
+        "product": { "type": "string" },
+        "soundingCm": { "type": "number" },
+        "tableLevelCm": { "type": "number" },
+        "highLevelCm": { "type": "number" },
+        "temp": { "type": "number" },
+        "totalVolumeL": { "type": "number" },
+        "density": { "type": "number" },
+        "vcf": { "type": "number" },
+        "totalStockKg": { "type": "integer" },
+        "tonase": { "type": "number" },
+        "manualKg": { "type": "boolean" },
+        "note": { "type": "string" },
+        "recordedAtEpochMs": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "plantUnit",
+        "userId",
+        "dateKey",
+        "dateLabel",
+        "timeLabel",
+        "shift",
+        "operatorName",
+        "tankId",
+        "product",
+        "soundingCm",
+        "tableLevelCm",
+        "highLevelCm",
+        "temp",
+        "totalVolumeL",
+        "density",
+        "vcf",
+        "totalStockKg",
+        "tonase",
+        "manualKg",
+        "note",
+        "recordedAtEpochMs",
+        "createdAt"
+      ]
+    },
+    "ShiftReportDoc": {
+      "title": "ShiftReportDoc",
+      "description": "Shared Shift Report Draft per date and shift readable across personnel",
+      "type": "object",
+      "properties": {
+        "plantUnit": { "type": "string", "enum": ["FAC-TEXTURIZING"] },
+        "dateKey": { "type": "string" },
+        "dateLabel": { "type": "string" },
+        "shift": { "type": "string", "enum": ["Pagi", "Sore", "Malam"] },
+        "operatorName": { "type": "string" },
+        "nbNote": { "type": "string" },
+        "totalAwalKg": { "type": "integer" },
+        "totalAkhirKg": { "type": "integer" },
+        "transferCount": { "type": "integer" },
+        "draftJson": { "type": "string" },
+        "updatedByUid": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "plantUnit",
+        "dateKey",
+        "dateLabel",
+        "shift",
+        "operatorName",
+        "nbNote",
+        "totalAwalKg",
+        "totalAkhirKg",
+        "transferCount",
+        "draftJson",
+        "updatedByUid",
+        "updatedAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": ["google.com"]
+  },
+  "firestore": {
+    "/current_tank_stocks/{tankDocId}": {
+      "schema": { "$ref": "#/entities/CurrentTankStock" },
+      "description": "Latest realtime stock per tank for FAC - SPECIALTY FATS - TEXTURIZING"
+    },
+    "/sounding_history/{entryId}": {
+      "schema": { "$ref": "#/entities/SoundingHistoryEntry" },
+      "description": "Chronological sounding history shared across shifts"
+    },
+    "/shift_reports/{reportId}": {
+      "schema": { "$ref": "#/entities/ShiftReportDoc" },
+      "description": "Shift report drafts keyed by dateKey_shift for cross-shift monitoring"
+    }
+  }
+}

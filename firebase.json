@@ -1,0 +1,13 @@
+{
+  "firestore": [
+    {
+      "database": "ai-studio-android-sounding-1ab266ff-c952-4ee6-808f-57e208dd36df",
+      "rules": "firestore.rules"
+    }
+  ],
+  "emulators": {
+    "firestore": {
+      "port": 8085
+    }
+  }
+}

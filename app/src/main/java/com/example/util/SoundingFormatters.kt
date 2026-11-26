@@ -1,5 +1,6 @@
 package com.example.util
 
+import com.example.data.CalibrationEngine
 import com.example.data.local.SoundingLogEntity
 import com.example.data.model.SoundingCalculation
 import java.text.DecimalFormat
@@ -50,6 +51,10 @@ object SoundingFormatters {
         }
     }
 
+    private val shortWeekdaysId = arrayOf("Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab")
+    private val fullWeekdaysId = arrayOf("Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu")
+    private val shortMonthsId = arrayOf("Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des")
+
     fun formatIsoUtc(epochMs: Long): String {
         val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("UTC")
@@ -57,18 +62,60 @@ object SoundingFormatters {
         return sdf.format(Date(epochMs))
     }
 
-    fun formatDisplayDateTime(epochMs: Long): String {
-        val sdf = SimpleDateFormat("dd/MM/yy HH.mm", idLocale)
-        return sdf.format(Date(epochMs))
+    fun formatLocalDate(
+        epochMs: Long,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): String {
+        val cal = java.util.Calendar.getInstance(timeZone).apply { timeInMillis = epochMs }
+        val dayName = shortWeekdaysId[(cal.get(java.util.Calendar.DAY_OF_WEEK) - 1).coerceIn(0, 6)]
+        val dayOfMonth = cal.get(java.util.Calendar.DAY_OF_MONTH)
+        val monthName = shortMonthsId[cal.get(java.util.Calendar.MONTH).coerceIn(0, 11)]
+        val year = cal.get(java.util.Calendar.YEAR)
+        return "$dayName, $dayOfMonth $monthName $year"
     }
 
-    fun formatReportDate(epochMs: Long = System.currentTimeMillis()): String {
-        val sdf = SimpleDateFormat("EEEE, dd MMM yy", idLocale)
-        return sdf.format(Date(epochMs))
+    fun formatLocalTime(
+        epochMs: Long,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): String {
+        val cal = java.util.Calendar.getInstance(timeZone).apply { timeInMillis = epochMs }
+        val hour = cal.get(java.util.Calendar.HOUR_OF_DAY)
+        val minute = cal.get(java.util.Calendar.MINUTE)
+        return String.format(Locale.US, "%02d:%02d", hour, minute)
+    }
+
+    fun formatDisplayDateTime(
+        epochMs: Long,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): String {
+        return "${formatLocalDate(epochMs, timeZone)} • ${formatLocalTime(epochMs, timeZone)}"
+    }
+
+    fun formatReportDate(
+        epochMs: Long = System.currentTimeMillis(),
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): String {
+        val cal = java.util.Calendar.getInstance(timeZone).apply { timeInMillis = epochMs }
+        val dayName = fullWeekdaysId[(cal.get(java.util.Calendar.DAY_OF_WEEK) - 1).coerceIn(0, 6)]
+        val dayOfMonth = cal.get(java.util.Calendar.DAY_OF_MONTH)
+        val monthName = shortMonthsId[cal.get(java.util.Calendar.MONTH).coerceIn(0, 11)]
+        val year = cal.get(java.util.Calendar.YEAR)
+        return "$dayName, $dayOfMonth $monthName $year"
+    }
+
+    fun formatTimeRange(
+        earliestEpochMs: Long?,
+        latestEpochMs: Long?,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): String {
+        if (earliestEpochMs == null || latestEpochMs == null) return ""
+        val start = formatLocalTime(earliestEpochMs, timeZone)
+        val end = formatLocalTime(latestEpochMs, timeZone)
+        return if (start == end) start else "$start – $end"
     }
 
     fun formatProductAndNote(product: String, note: String): String {
-        val p = product.trim()
+        val p = CalibrationEngine.normalizeProductName(product)
         val n = note.trim()
         return when {
             p.isNotEmpty() && n.isNotEmpty() -> "$p ($n)"
@@ -79,14 +126,15 @@ object SoundingFormatters {
     }
 
     fun formatWhatsAppSummary(calc: SoundingCalculation): String {
+        val productLabel = CalibrationEngine.normalizeProductName(calc.product)
         if (calc.isManualKg) {
-            val desc = formatProductAndNote(calc.product, calc.note)
+            val desc = formatProductAndNote(productLabel, calc.note)
             return "${calc.tankId} | $desc | Input Manual | Stok: ${calc.stockKg} kg (${formatTon(calc.stockTon)} Ton)"
         }
         return buildString {
             append(calc.tankId)
             append(" | ")
-            append(calc.product)
+            append(productLabel)
             append(" | Sounding: ")
             append(formatCompact(calc.sounding))
             append(" cm | High: ")
@@ -103,15 +151,24 @@ object SoundingFormatters {
         }
     }
 
-    fun formatLogWhatsAppSummary(log: SoundingLogEntity): String {
+    fun formatLogWhatsAppSummary(
+        log: SoundingLogEntity,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): String {
+        val productLabel = CalibrationEngine.normalizeProductName(log.product)
+        val timeStamp = if (log.createdAtEpochMs > 0L) {
+            formatDisplayDateTime(log.createdAtEpochMs, timeZone)
+        } else {
+            log.timestampIso
+        }
         if (log.isManualKg) {
-            val desc = formatProductAndNote(log.product, log.note)
-            return "${log.tankId} | $desc | Input Manual | Stok: ${log.stockKg} kg (${formatTon(log.stockKg / 1000.0)} Ton)"
+            val desc = formatProductAndNote(productLabel, log.note)
+            return "${log.tankId} | $desc | Input Manual | Stok: ${log.stockKg} kg (${formatTon(log.stockKg / 1000.0)} Ton) | $timeStamp"
         }
         return buildString {
             append(log.tankId)
             append(" | ")
-            append(log.product)
+            append(productLabel)
             append(" | Sounding: ")
             append(formatCompact(log.sounding))
             append(" cm | High: ")
@@ -124,20 +181,30 @@ object SoundingFormatters {
             append(log.stockKg)
             append(" kg (")
             append(formatTon(log.stockKg / 1000.0))
-            append(" Ton)")
+            append(" Ton) | ")
+            append(timeStamp)
         }
     }
 
-    fun buildCsvContent(logs: List<SoundingLogEntity>): String {
+    fun buildCsvContent(
+        logs: List<SoundingLogEntity>,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): String {
         val header =
-            "Waktu,Tangki,Produk,Catatan,Mode,Sounding_Cm,Table_Level_Cm,High_Level_Cm,Temp_C,Volume_Liter,Density,VCF,Total_Stock_Kg,Total_Stock_Ton"
+            "Tanggal,Jam,Waktu_Lengkap,Tangki,Produk,Catatan,Mode,Sounding_Cm,Table_Level_Cm,High_Level_Cm,Temp_C,Volume_Liter,Density,VCF,Total_Stock_Kg,Total_Stock_Ton"
         val sb = StringBuilder()
         sb.append(header)
         for (l in logs) {
             sb.append('\n')
-            sb.append(csvEscape(l.timestampIso)).append(',')
+            val dateLabel = if (l.createdAtEpochMs > 0L) formatLocalDate(l.createdAtEpochMs, timeZone) else l.timestampIso
+            val timeLabel = if (l.createdAtEpochMs > 0L) formatLocalTime(l.createdAtEpochMs, timeZone) else ""
+            val fullTimestamp = if (l.createdAtEpochMs > 0L) formatDisplayDateTime(l.createdAtEpochMs, timeZone) else l.timestampIso
+            sb.append(csvEscape(dateLabel)).append(',')
+            sb.append(csvEscape(timeLabel)).append(',')
+            sb.append(csvEscape(fullTimestamp)).append(',')
             sb.append(csvEscape(l.tankId)).append(',')
-            sb.append('"').append(l.product.replace("\"", "\"\"")).append('"').append(',')
+            val productLabel = CalibrationEngine.normalizeProductName(l.product)
+            sb.append('"').append(productLabel.replace("\"", "\"\"")).append('"').append(',')
             sb.append('"').append(l.note.replace("\"", "\"\"")).append('"').append(',')
             sb.append(if (l.isManualKg) "Manual_Kg" else "Kalibrasi").append(',')
             sb.append(if (l.isManualKg) "" else formatCompact(l.sounding)).append(',')
