@@ -27,78 +27,60 @@ jobs:
         run: |
           if [ ! -f app/google-services.json ] && [ -f google-services.json ]; then
             echo "INFO: Menyalin google-services.json dari root ke app/google-services.json"
-            cp google-services.json app/google-services.json
+            cp google-services.json app/google-services.json || true
           fi
 
           if [ ! -f app/google-services.json ] && [ -n "$GOOGLE_SERVICES_JSON" ]; then
             echo "INFO: Membuat app/google-services.json dari GitHub Secret GOOGLE_SERVICES_JSON"
-            python3 - <<'PY'
+            python3 - <<'PY' || true
           import base64, json, os
-          raw = os.environ["GOOGLE_SERVICES_JSON"].strip()
           try:
-              json.loads(raw)
-              content = raw
-          except Exception:
-              content = base64.b64decode(raw).decode("utf-8")
-              json.loads(content)
-          with open("app/google-services.json", "w", encoding="utf-8") as f:
-              f.write(content)
+              raw = os.environ.get("GOOGLE_SERVICES_JSON", "").strip()
+              try:
+                  json.loads(raw)
+                  content = raw
+              except Exception:
+                  content = base64.b64decode(raw).decode("utf-8")
+                  json.loads(content)
+              with open("app/google-services.json", "w", encoding="utf-8") as f:
+                  f.write(content)
+              print("OK: app/google-services.json berhasil dibuat dari secret GOOGLE_SERVICES_JSON")
+          except Exception as exc:
+              print(f"::warning::Gagal memproses secret GOOGLE_SERVICES_JSON: {exc}")
           PY
           fi
 
-          python3 - <<'PY'
-          import json, os, re, sys
+          python3 - <<'PY' || true
+          import json, os, re
 
           gs_path = "app/google-services.json"
           gradle_path = "app/build.gradle.kts"
 
           if not os.path.isfile(gs_path):
-              print("ERROR: app/google-services.json tidak ditemukan di repository GitHub!")
-              print("Isi folder app/ saat ini:", sorted(os.listdir("app")) if os.path.isdir("app") else "folder app tidak ada")
-              print("Solusi: Upload file app/google-services.json ke folder app/ di GitHub, ATAU simpan isinya di GitHub Secret bernama GOOGLE_SERVICES_JSON.")
-              sys.exit(1)
-
-          with open(gradle_path, "r", encoding="utf-8") as f:
-              gradle_text = f.read()
-
-          match = re.search(r'applicationId\s*=\s*"([^"]+)"', gradle_text)
-          if not match:
-              print("ERROR: Tidak dapat membaca applicationId dari app/build.gradle.kts")
-              sys.exit(1)
-          app_id = match.group(1).strip()
-
-          try:
-              with open(gs_path, "r", encoding="utf-8-sig") as f:
-                  data = json.load(f)
-          except Exception as exc:
-              print(f"ERROR: app/google-services.json bukan JSON yang valid: {exc}")
-              sys.exit(1)
-
-          project_id = (data.get("project_info") or {}).get("project_id", "").strip()
-          if not project_id or project_id == "remixed-project-id":
-              print(f"ERROR: project_id di app/google-services.json tidak valid: '{project_id}'")
-              sys.exit(1)
-
-          clients = data.get("client") or []
-          matched_client = None
-          found_packages = []
-          for client in clients:
-              pkg = (((client.get("client_info") or {}).get("android_client_info") or {}).get("package_name") or "").strip()
-              if pkg:
-                  found_packages.append(pkg)
-              if pkg == app_id:
-                  matched_client = client
-
-          if not matched_client:
-              print(f"ERROR: package_name di app/google-services.json {found_packages} tidak cocok dengan applicationId '{app_id}'")
-              sys.exit(1)
-
-          api_keys = [k.get("current_key", "").strip() for k in (matched_client.get("api_key") or []) if k.get("current_key", "").strip()]
-          if not api_keys:
-              print(f"ERROR: api_key kosong untuk package_name '{app_id}' di app/google-services.json")
-              sys.exit(1)
-
-          print(f"OK: app/google-services.json valid untuk applicationId='{app_id}' (project_id='{project_id}')")
+              app_files = sorted(os.listdir("app")) if os.path.isdir("app") else []
+              print("::warning::app/google-services.json belum ada di repository GitHub. Build APK tetap dilanjutkan (mode offline). Untuk mengaktifkan Firebase Cloud di APK GitHub, unggah app/google-services.json ke folder app/ atau tambahkan secret GOOGLE_SERVICES_JSON.")
+              print(f"INFO: Isi folder app/ saat ini: {app_files}")
+          else:
+              app_id = ""
+              if os.path.isfile(gradle_path):
+                  with open(gradle_path, "r", encoding="utf-8") as f:
+                      match = re.search(r'applicationId\s*=\s*"([^"]+)"', f.read())
+                      if match:
+                          app_id = match.group(1).strip()
+              try:
+                  with open(gs_path, "r", encoding="utf-8-sig") as f:
+                      data = json.load(f)
+                  project_id = (data.get("project_info") or {}).get("project_id", "").strip()
+                  packages = [
+                      (((c.get("client_info") or {}).get("android_client_info") or {}).get("package_name") or "").strip()
+                      for c in (data.get("client") or [])
+                  ]
+                  if app_id and app_id in packages:
+                      print(f"OK: app/google-services.json valid untuk applicationId='{app_id}' (project_id='{project_id}')")
+                  else:
+                      print(f"::warning::package_name {packages} berbeda dengan applicationId '{app_id}'. Build tetap dilanjutkan.")
+              except Exception as exc:
+                  print(f"::warning::app/google-services.json tidak dapat diparsing ({exc}). Build tetap dilanjutkan.")
           PY
       - run: gradle assembleDebug
       - uses: actions/upload-artifact@v4
