@@ -65,7 +65,6 @@ import com.example.R
 import com.example.data.firebase.ShiftReportCloudDoc
 import com.example.data.local.SoundingLogEntity
 import com.example.data.model.DraftSubTab
-import com.example.data.model.ReportTimeSlot
 import com.example.data.model.ShiftDraftEngine
 import com.example.data.model.ShiftReportDraft
 import com.example.data.model.TankGroup
@@ -89,16 +88,16 @@ fun DraftReportScreen(
     historyLogs: List<SoundingLogEntity>,
     cloudShiftReports: List<ShiftReportCloudDoc> = emptyList(),
     availableDraftDates: List<DateFilterOption> = emptyList(),
+    availableDraftAccounts: List<String> = emptyList(),
     selectedDraftDateFilter: String = FILTER_ALL,
-    selectedDraftShiftFilter: String = FILTER_ALL,
-    isViewingOtherShiftReport: Boolean = false,
+    selectedDraftAccountFilter: String = FILTER_ALL,
+    isViewingCloudReport: Boolean = false,
     onSelectDraftDateFilter: (String) -> Unit = {},
-    onSelectDraftShiftFilter: (String) -> Unit = {},
+    onSelectDraftAccountFilter: (String) -> Unit = {},
     onOpenCloudShiftReport: (ShiftReportCloudDoc) -> Unit = {},
-    onReturnToActiveShift: () -> Unit = {},
+    onReturnToActiveDraft: () -> Unit = {},
     onSaveDraftToCloud: () -> Unit = {},
     onDateChanged: (String) -> Unit,
-    onShiftChanged: (ReportTimeSlot) -> Unit,
     onOperatorChanged: (String) -> Unit,
     onNbChanged: (String) -> Unit,
     onUpdateTankRow: (TankShiftDraftRow) -> Unit,
@@ -127,17 +126,16 @@ fun DraftReportScreen(
                 .widthIn(max = 820.dp)
         ) {
             // =================================================================
-            // 1. HEADER IDENTITAS SHIFT (Always visible above both sub-tabs)
+            // 1. HEADER IDENTITAS LAPORAN (Always visible above both sub-tabs)
             // =================================================================
-            ShiftIdentityStickyHeader(
+            ReportIdentityStickyHeader(
                 draft = draft,
-                isViewingOtherShiftReport = isViewingOtherShiftReport,
+                isViewingCloudReport = isViewingCloudReport,
                 onDateChanged = onDateChanged,
-                onShiftChanged = onShiftChanged,
                 onOperatorChanged = onOperatorChanged,
                 onSyncFromHistory = onSyncFromHistory,
                 onSaveToCloud = onSaveDraftToCloud,
-                onReturnToActiveShift = onReturnToActiveShift,
+                onReturnToActiveDraft = onReturnToActiveDraft,
                 onRequestReset = { showResetConfirm = true },
                 onExportJpg = onOpenExportDraftJpg
             )
@@ -200,14 +198,15 @@ fun DraftReportScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                item(key = "cloud_shift_monitor") {
-                    CloudShiftMonitorCard(
+                item(key = "cloud_report_monitor") {
+                    CloudReportMonitorCard(
                         cloudReports = cloudShiftReports,
                         availableDates = availableDraftDates,
+                        availableAccounts = availableDraftAccounts,
                         selectedDateKey = selectedDraftDateFilter,
-                        selectedShift = selectedDraftShiftFilter,
+                        selectedAccount = selectedDraftAccountFilter,
                         onSelectDate = onSelectDraftDateFilter,
-                        onSelectShift = onSelectDraftShiftFilter,
+                        onSelectAccount = onSelectDraftAccountFilter,
                         onOpenReport = onOpenCloudShiftReport
                     )
                 }
@@ -348,15 +347,14 @@ fun DraftReportScreen(
 }
 
 @Composable
-private fun ShiftIdentityStickyHeader(
+private fun ReportIdentityStickyHeader(
     draft: ShiftReportDraft,
-    isViewingOtherShiftReport: Boolean,
+    isViewingCloudReport: Boolean,
     onDateChanged: (String) -> Unit,
-    onShiftChanged: (ReportTimeSlot) -> Unit,
     onOperatorChanged: (String) -> Unit,
     onSyncFromHistory: () -> Unit,
     onSaveToCloud: () -> Unit,
-    onReturnToActiveShift: () -> Unit,
+    onReturnToActiveDraft: () -> Unit,
     onRequestReset: () -> Unit,
     onExportJpg: () -> Unit
 ) {
@@ -385,7 +383,7 @@ private fun ShiftIdentityStickyHeader(
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (isViewingOtherShiftReport) {
+            if (isViewingCloudReport) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.small,
@@ -410,11 +408,15 @@ private fun ShiftIdentityStickyHeader(
                                 tint = extras.onLeafContainer,
                                 modifier = Modifier.size(16.dp)
                             )
+                            val detailMeta = listOf(
+                                draft.operatorName.ifBlank { "-" },
+                                draft.timeLabel.trim()
+                            ).filter { it.isNotEmpty() }.joinToString(" • ")
                             Text(
                                 text = stringResource(
                                     R.string.draft_viewing_other_banner,
                                     draft.dateLabel.ifBlank { "-" },
-                                    draft.shift.label
+                                    detailMeta
                                 ),
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                 color = extras.onLeafContainer,
@@ -423,14 +425,14 @@ private fun ShiftIdentityStickyHeader(
                             )
                         }
                         TextButton(
-                            onClick = onReturnToActiveShift,
+                            onClick = onReturnToActiveDraft,
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                            modifier = Modifier.testTag("draft_return_active_shift_button")
+                            modifier = Modifier.testTag("draft_return_active_button")
                         ) {
                             Text(
                                 text = stringResource(R.string.draft_action_back_today),
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = BrandDeepTeal
+                                color = extras.interactiveAccent
                             )
                         }
                     }
@@ -504,7 +506,7 @@ private fun ShiftIdentityStickyHeader(
                         Icon(
                             imageVector = Icons.Filled.Image,
                             contentDescription = stringResource(R.string.draft_action_export_jpg),
-                            tint = BrandDeepTeal,
+                            tint = extras.interactiveAccent,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -541,51 +543,6 @@ private fun ShiftIdentityStickyHeader(
                     placeholder = { Text(stringResource(R.string.draft_placeholder_operator), style = MaterialTheme.typography.labelSmall) },
                     shape = MaterialTheme.shapes.small
                 )
-            }
-
-            // Shift selector: Pagi | Sore | Malam
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(R.string.draft_label_shift),
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 4.dp)
-                )
-                ReportTimeSlot.entries.forEach { slot ->
-                    val selected = draft.shift == slot
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 38.dp)
-                            .clickable { onShiftChanged(slot) }
-                            .testTag("draft_shift_${slot.name.lowercase()}"),
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (selected) extras.leafContainer else extras.elevatedSurface,
-                        border = BorderStroke(
-                            width = if (selected) 1.5.dp else 1.dp,
-                            color = if (selected) extras.leafAccent else extras.cardBorder
-                        )
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = slot.label,
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-                                ),
-                                color = if (selected) extras.onLeafContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
             }
         }
     }
@@ -1028,23 +985,18 @@ private fun StokAkhirCard(
 }
 
 @Composable
-private fun CloudShiftMonitorCard(
+private fun CloudReportMonitorCard(
     cloudReports: List<ShiftReportCloudDoc>,
     availableDates: List<DateFilterOption>,
+    availableAccounts: List<String>,
     selectedDateKey: String,
-    selectedShift: String,
+    selectedAccount: String,
     onSelectDate: (String) -> Unit,
-    onSelectShift: (String) -> Unit,
+    onSelectAccount: (String) -> Unit,
     onOpenReport: (ShiftReportCloudDoc) -> Unit
 ) {
     val extras = SoundingThemeExtras.colors
     var expanded by remember { mutableStateOf(true) }
-    val shiftOptions = listOf(
-        FILTER_ALL to stringResource(R.string.filter_shift_all),
-        ReportTimeSlot.PAGI.label to ReportTimeSlot.PAGI.label,
-        ReportTimeSlot.SORE.label to ReportTimeSlot.SORE.label,
-        ReportTimeSlot.MALAM.label to ReportTimeSlot.MALAM.label
-    )
 
     Surface(
         modifier = Modifier
@@ -1104,45 +1056,6 @@ private fun CloudShiftMonitorCard(
             }
 
             if (expanded) {
-                // Shift filter row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    shiftOptions.forEach { (value, label) ->
-                        val selected = selectedShift == value
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 36.dp)
-                                .clickable { onSelectShift(value) }
-                                .testTag("draft_monitor_shift_${value.lowercase()}"),
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (selected) BrandDeepTeal else extras.elevatedSurface,
-                            border = BorderStroke(
-                                width = if (selected) 1.5.dp else 1.dp,
-                                color = if (selected) BrandDeepTeal else extras.cardBorder
-                            )
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 7.dp, horizontal = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-                                    ),
-                                    color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                }
-
                 // Date filter chips
                 if (availableDates.isNotEmpty()) {
                     Row(
@@ -1151,18 +1064,47 @@ private fun CloudShiftMonitorCard(
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        DraftDateChip(
+                        DraftFilterChip(
                             label = stringResource(R.string.filter_date_all),
                             selected = selectedDateKey == FILTER_ALL,
+                            usePrimaryFill = true,
                             onClick = { onSelectDate(FILTER_ALL) },
                             testTag = "draft_monitor_date_all"
                         )
                         availableDates.forEach { opt ->
-                            DraftDateChip(
+                            DraftFilterChip(
                                 label = opt.label,
                                 selected = selectedDateKey == opt.dateKey,
+                                usePrimaryFill = true,
                                 onClick = { onSelectDate(opt.dateKey) },
                                 testTag = "draft_monitor_date_${opt.dateKey}"
+                            )
+                        }
+                    }
+                }
+
+                // Account filter chips
+                if (availableAccounts.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        DraftFilterChip(
+                            label = stringResource(R.string.filter_account_all),
+                            selected = selectedAccount == FILTER_ALL,
+                            usePrimaryFill = false,
+                            onClick = { onSelectAccount(FILTER_ALL) },
+                            testTag = "draft_monitor_account_all"
+                        )
+                        availableAccounts.forEach { account ->
+                            DraftFilterChip(
+                                label = account,
+                                selected = selectedAccount.equals(account, ignoreCase = true),
+                                usePrimaryFill = false,
+                                onClick = { onSelectAccount(account) },
+                                testTag = "draft_monitor_account_$account"
                             )
                         }
                     }
@@ -1179,12 +1121,22 @@ private fun CloudShiftMonitorCard(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         contentPadding = PaddingValues(vertical = 2.dp)
                     ) {
-                        items(items = cloudReports, key = { it.id.ifBlank { "${it.dateKey}_${it.shift}" } }) { report ->
+                        items(
+                            items = cloudReports,
+                            key = { it.id.ifBlank { "${it.dateKey}_${it.displayAccountName}_${it.updatedAtEpochMs}" } }
+                        ) { report ->
+                            val timeText = report.timeLabel.ifBlank {
+                                if (report.updatedAtEpochMs > 0L) {
+                                    SoundingFormatters.formatLocalTime(report.updatedAtEpochMs)
+                                } else {
+                                    ""
+                                }
+                            }
                             Surface(
                                 modifier = Modifier
-                                    .width(210.dp)
+                                    .width(214.dp)
                                     .clickable { onOpenReport(report) }
-                                    .testTag("cloud_shift_report_${report.id}"),
+                                    .testTag("cloud_report_${report.id}"),
                                 shape = MaterialTheme.shapes.medium,
                                 color = extras.elevatedSurface,
                                 border = BorderStroke(1.dp, extras.cardBorder)
@@ -1203,16 +1155,13 @@ private fun CloudShiftMonitorCard(
                                             color = extras.leafContainer
                                         ) {
                                             Text(
-                                                text = "Shift ${report.shift}",
+                                                text = report.displayAccountName.ifBlank { "-" },
                                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                                 color = extras.onLeafContainer,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                             )
-                                        }
-                                        val timeText = if (report.updatedAtEpochMs > 0L) {
-                                            SoundingFormatters.formatLocalTime(report.updatedAtEpochMs)
-                                        } else {
-                                            ""
                                         }
                                         if (timeText.isNotEmpty()) {
                                             Text(
@@ -1230,16 +1179,6 @@ private fun CloudShiftMonitorCard(
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-
-                                    if (report.operatorName.isNotBlank()) {
-                                        Text(
-                                            text = "Op: ${report.operatorName}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
 
                                     Text(
                                         text = "Akhir: ${SoundingFormatters.formatIndonesianInteger(report.totalAkhirKg)} kg • ${report.transferCount} TF",
@@ -1259,23 +1198,40 @@ private fun CloudShiftMonitorCard(
 }
 
 @Composable
-private fun DraftDateChip(
+private fun DraftFilterChip(
     label: String,
     selected: Boolean,
+    usePrimaryFill: Boolean,
     onClick: () -> Unit,
     testTag: String
 ) {
     val extras = SoundingThemeExtras.colors
+    val bgColor = when {
+        selected && usePrimaryFill -> extras.executiveActionSurface
+        selected -> extras.leafContainer
+        else -> extras.elevatedSurface
+    }
+    val borderColor = when {
+        selected && usePrimaryFill -> extras.executiveActionSurface
+        selected -> extras.leafAccent
+        else -> extras.cardBorder
+    }
+    val textColor = when {
+        selected && usePrimaryFill -> Color.White
+        selected -> extras.onLeafContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
     Surface(
         modifier = Modifier
             .heightIn(min = 34.dp)
             .clickable(onClick = onClick)
             .testTag(testTag),
         shape = RoundedCornerShape(999.dp),
-        color = if (selected) extras.leafContainer else extras.elevatedSurface,
+        color = bgColor,
         border = BorderStroke(
             width = if (selected) 1.5.dp else 1.dp,
-            color = if (selected) extras.leafAccent else extras.cardBorder
+            color = borderColor
         )
     ) {
         Box(
@@ -1287,7 +1243,7 @@ private fun DraftDateChip(
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                 ),
-                color = if (selected) extras.onLeafContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                color = textColor
             )
         }
     }

@@ -1,9 +1,9 @@
 rules_version = '2';
 
 // Security Rules for Sounding Preblend & Towertank (FAC - SPECIALTY FATS - TEXTURIZING)
-// Access model: Authenticated plant personnel (Google Sign-In) share realtime operational
-// data scoped to plantUnit == 'FAC-TEXTURIZING'. All writes validate strict schemas,
-// bounds, server timestamps, and caller UID attribution. History deletions are author-only.
+// Access model: Authenticated plant sessions share realtime operational data scoped to
+// plantUnit == 'FAC-TEXTURIZING'. Every write validates strict schemas, bounds,
+// accountName/operatorName attribution, full timestamps, and caller UID.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -18,7 +18,7 @@ service cloud.firestore {
     }
 
     function isValidId(id) {
-      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9._\\-]+$');
     }
 
     function incoming() {
@@ -29,29 +29,34 @@ service cloud.firestore {
       return resource.data;
     }
 
-    function isValidShift(val) {
-      return val is string && val in ['Pagi', 'Sore', 'Malam'];
+    function isValidAccountName(val) {
+      return val is string
+        && val.size() >= 1
+        && val.size() <= 64
+        && val.matches('^[a-z0-9._-]+$');
     }
 
     function isValidCurrentTankStock(data) {
       return data.keys().hasAll([
           'plantUnit', 'tankId', 'product', 'soundingCm', 'tableLevelCm',
           'highLevelCm', 'totalVolumeL', 'totalStockKg', 'tonase', 'temp',
-          'density', 'vcf', 'manualKg', 'note', 'lastShift', 'lastOperator',
-          'dateKey', 'updatedByUid', 'updatedAt'
+          'density', 'vcf', 'manualKg', 'note', 'accountName', 'operatorName',
+          'dateKey', 'dateLabel', 'timeLabel', 'recordedAtEpochMs',
+          'updatedByUid', 'updatedAt'
         ])
         && data.keys().hasOnly([
           'plantUnit', 'tankId', 'product', 'soundingCm', 'tableLevelCm',
           'highLevelCm', 'totalVolumeL', 'totalStockKg', 'tonase', 'temp',
-          'density', 'vcf', 'manualKg', 'note', 'lastShift', 'lastOperator',
-          'dateKey', 'updatedByUid', 'updatedAt'
+          'density', 'vcf', 'manualKg', 'note', 'accountName', 'operatorName',
+          'dateKey', 'dateLabel', 'timeLabel', 'recordedAtEpochMs',
+          'updatedByUid', 'updatedAt'
         ])
         && data.plantUnit == 'FAC-TEXTURIZING'
         && data.tankId is string && data.tankId.size() >= 1 && data.tankId.size() <= 24
         && data.product is string && data.product.size() <= 100
         && data.soundingCm is number && data.soundingCm >= -500 && data.soundingCm <= 5000
-        && data.tableLevelCm is number && data.tableLevelCm >= 0 && data.tableLevelCm <= 5000
-        && data.highLevelCm is number && data.highLevelCm >= 0 && data.highLevelCm <= 5000
+        && data.tableLevelCm is number && data.tableLevelCm >= -500 && data.tableLevelCm <= 5000
+        && data.highLevelCm is number && data.highLevelCm >= -1000 && data.highLevelCm <= 5000
         && data.totalVolumeL is number && data.totalVolumeL >= 0 && data.totalVolumeL <= 5000000
         && data.totalStockKg is int && data.totalStockKg >= 0 && data.totalStockKg <= 5000000
         && data.tonase is number && data.tonase >= 0 && data.tonase <= 5000
@@ -60,40 +65,43 @@ service cloud.firestore {
         && data.vcf is number && data.vcf >= 0 && data.vcf <= 5
         && data.manualKg is bool
         && data.note is string && data.note.size() <= 300
-        && isValidShift(data.lastShift)
-        && data.lastOperator is string && data.lastOperator.size() <= 100
+        && isValidAccountName(data.accountName)
+        && data.operatorName is string && data.operatorName.size() >= 1 && data.operatorName.size() <= 100
         && data.dateKey is string && data.dateKey.size() >= 1 && data.dateKey.size() <= 20
+        && data.dateLabel is string && data.dateLabel.size() >= 1 && data.dateLabel.size() <= 60
+        && data.timeLabel is string && data.timeLabel.size() >= 1 && data.timeLabel.size() <= 20
+        && data.recordedAtEpochMs is int && data.recordedAtEpochMs > 0
         && data.updatedByUid is string && data.updatedByUid == request.auth.uid
         && data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
 
     function isValidSoundingHistory(data) {
       return data.keys().hasAll([
-          'plantUnit', 'userId', 'dateKey', 'dateLabel', 'timeLabel', 'shift',
-          'operatorName', 'tankId', 'product', 'soundingCm', 'tableLevelCm',
-          'highLevelCm', 'temp', 'totalVolumeL', 'density', 'vcf',
-          'totalStockKg', 'tonase', 'manualKg', 'note', 'recordedAtEpochMs',
-          'createdAt'
+          'plantUnit', 'userId', 'dateKey', 'dateLabel', 'timeLabel',
+          'accountName', 'operatorName', 'tankId', 'product',
+          'soundingCm', 'tableLevelCm', 'highLevelCm', 'temp', 'totalVolumeL',
+          'density', 'vcf', 'totalStockKg', 'tonase', 'manualKg', 'note',
+          'recordedAtEpochMs', 'createdAt'
         ])
         && data.keys().hasOnly([
-          'plantUnit', 'userId', 'dateKey', 'dateLabel', 'timeLabel', 'shift',
-          'operatorName', 'tankId', 'product', 'soundingCm', 'tableLevelCm',
-          'highLevelCm', 'temp', 'totalVolumeL', 'density', 'vcf',
-          'totalStockKg', 'tonase', 'manualKg', 'note', 'recordedAtEpochMs',
-          'createdAt'
+          'plantUnit', 'userId', 'dateKey', 'dateLabel', 'timeLabel',
+          'accountName', 'operatorName', 'tankId', 'product',
+          'soundingCm', 'tableLevelCm', 'highLevelCm', 'temp', 'totalVolumeL',
+          'density', 'vcf', 'totalStockKg', 'tonase', 'manualKg', 'note',
+          'recordedAtEpochMs', 'createdAt'
         ])
         && data.plantUnit == 'FAC-TEXTURIZING'
         && data.userId is string && data.userId == request.auth.uid
         && data.dateKey is string && data.dateKey.size() >= 1 && data.dateKey.size() <= 20
         && data.dateLabel is string && data.dateLabel.size() >= 1 && data.dateLabel.size() <= 60
         && data.timeLabel is string && data.timeLabel.size() >= 1 && data.timeLabel.size() <= 20
-        && isValidShift(data.shift)
-        && data.operatorName is string && data.operatorName.size() <= 100
+        && isValidAccountName(data.accountName)
+        && data.operatorName is string && data.operatorName.size() >= 1 && data.operatorName.size() <= 100
         && data.tankId is string && data.tankId.size() >= 1 && data.tankId.size() <= 24
         && data.product is string && data.product.size() <= 100
         && data.soundingCm is number && data.soundingCm >= -500 && data.soundingCm <= 5000
-        && data.tableLevelCm is number && data.tableLevelCm >= 0 && data.tableLevelCm <= 5000
-        && data.highLevelCm is number && data.highLevelCm >= 0 && data.highLevelCm <= 5000
+        && data.tableLevelCm is number && data.tableLevelCm >= -500 && data.tableLevelCm <= 5000
+        && data.highLevelCm is number && data.highLevelCm >= -1000 && data.highLevelCm <= 5000
         && data.temp is number && data.temp >= -50 && data.temp <= 300
         && data.totalVolumeL is number && data.totalVolumeL >= 0 && data.totalVolumeL <= 5000000
         && data.density is number && data.density >= 0 && data.density <= 5
@@ -108,25 +116,29 @@ service cloud.firestore {
 
     function isValidShiftReport(data) {
       return data.keys().hasAll([
-          'plantUnit', 'dateKey', 'dateLabel', 'shift', 'operatorName',
-          'nbNote', 'totalAwalKg', 'totalAkhirKg', 'transferCount',
-          'draftJson', 'updatedByUid', 'updatedAt'
+          'plantUnit', 'dateKey', 'dateLabel', 'timeLabel', 'accountName',
+          'operatorName', 'nbNote', 'totalAwalKg', 'totalAkhirKg',
+          'transferCount', 'draftJson', 'recordedAtEpochMs',
+          'updatedByUid', 'updatedAt'
         ])
         && data.keys().hasOnly([
-          'plantUnit', 'dateKey', 'dateLabel', 'shift', 'operatorName',
-          'nbNote', 'totalAwalKg', 'totalAkhirKg', 'transferCount',
-          'draftJson', 'updatedByUid', 'updatedAt'
+          'plantUnit', 'dateKey', 'dateLabel', 'timeLabel', 'accountName',
+          'operatorName', 'nbNote', 'totalAwalKg', 'totalAkhirKg',
+          'transferCount', 'draftJson', 'recordedAtEpochMs',
+          'updatedByUid', 'updatedAt'
         ])
         && data.plantUnit == 'FAC-TEXTURIZING'
         && data.dateKey is string && data.dateKey.size() >= 1 && data.dateKey.size() <= 20
         && data.dateLabel is string && data.dateLabel.size() >= 1 && data.dateLabel.size() <= 80
-        && isValidShift(data.shift)
-        && data.operatorName is string && data.operatorName.size() <= 120
+        && data.timeLabel is string && data.timeLabel.size() >= 1 && data.timeLabel.size() <= 20
+        && isValidAccountName(data.accountName)
+        && data.operatorName is string && data.operatorName.size() >= 1 && data.operatorName.size() <= 120
         && data.nbNote is string && data.nbNote.size() <= 2000
         && data.totalAwalKg is int && data.totalAwalKg >= 0 && data.totalAwalKg <= 50000000
         && data.totalAkhirKg is int && data.totalAkhirKg >= 0 && data.totalAkhirKg <= 50000000
         && data.transferCount is int && data.transferCount >= 0 && data.transferCount <= 200
         && data.draftJson is string && data.draftJson.size() >= 2 && data.draftJson.size() <= 60000
+        && data.recordedAtEpochMs is int && data.recordedAtEpochMs > 0
         && data.updatedByUid is string && data.updatedByUid == request.auth.uid
         && data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
@@ -145,8 +157,10 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'product', 'soundingCm', 'tableLevelCm', 'highLevelCm',
           'totalVolumeL', 'totalStockKg', 'tonase', 'temp', 'density',
-          'vcf', 'manualKg', 'note', 'lastShift', 'lastOperator',
-          'dateKey', 'updatedByUid', 'updatedAt'
+          'vcf', 'manualKg', 'note', 'accountName', 'operatorName',
+          'dateKey', 'dateLabel', 'timeLabel', 'recordedAtEpochMs',
+          'updatedByUid', 'updatedAt',
+          'lastShift', 'lastOperator', 'operatorId', 'operatorUsername'
         ]);
       allow delete: if false;
     }
@@ -174,10 +188,158 @@ service cloud.firestore {
         && existing().plantUnit == 'FAC-TEXTURIZING'
         && isValidShiftReport(incoming())
         && incoming().dateKey == existing().dateKey
-        && incoming().shift == existing().shift
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'dateLabel', 'operatorName', 'nbNote', 'totalAwalKg',
-          'totalAkhirKg', 'transferCount', 'draftJson', 'updatedByUid', 'updatedAt'
+          'dateLabel', 'timeLabel', 'accountName', 'operatorName', 'nbNote',
+          'totalAwalKg', 'totalAkhirKg', 'transferCount', 'draftJson',
+          'recordedAtEpochMs', 'updatedByUid', 'updatedAt',
+          'shift', 'operatorId', 'operatorUsername'
+        ]);
+      allow delete: if false;
+    }
+
+    function isValidActivationCode(code) {
+      return code is string && code in [
+        'SPTF-8472', 'SPTF-3916', 'SPTF-6259', 'SPTF-5184',
+        'SPTF-9347', 'SPTF-2763', 'SPTF-7528', 'SPTF-4691'
+      ];
+    }
+
+    function isValidDeviceLicense(data, deviceId) {
+      return data.keys().hasAll([
+          'plantUnit', 'deviceId', 'firstInstalledAt', 'trialEndsAt',
+          'isActivated', 'activationCode', 'activatedAtEpochMs',
+          'lastUsername', 'updatedByUid', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'plantUnit', 'deviceId', 'firstInstalledAt', 'trialEndsAt',
+          'isActivated', 'activationCode', 'activatedAtEpochMs',
+          'lastUsername', 'updatedByUid', 'updatedAt'
+        ])
+        && data.plantUnit == 'FAC-TEXTURIZING'
+        && data.deviceId is string && data.deviceId == deviceId
+        && data.firstInstalledAt is int && data.firstInstalledAt > 0
+        && data.trialEndsAt is int
+        && data.trialEndsAt >= data.firstInstalledAt
+        && data.trialEndsAt <= data.firstInstalledAt + 5184000000
+        && data.isActivated is bool
+        && data.activationCode is string
+        && ((!data.isActivated && data.activationCode == '') || (data.isActivated && isValidActivationCode(data.activationCode)))
+        && data.activatedAtEpochMs is int && data.activatedAtEpochMs >= 0
+        && data.lastUsername is string && (data.lastUsername == '' || isValidAccountName(data.lastUsername))
+        && data.updatedByUid is string && data.updatedByUid == request.auth.uid
+        && data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidActivationCodeBinding(data, code) {
+      return data.keys().hasAll([
+          'plantUnit', 'code', 'used', 'boundDeviceId',
+          'claimedByUsername', 'claimedByUid', 'claimedAtEpochMs', 'claimedAt'
+        ])
+        && data.keys().hasOnly([
+          'plantUnit', 'code', 'used', 'boundDeviceId',
+          'claimedByUsername', 'claimedByUid', 'claimedAtEpochMs', 'claimedAt'
+        ])
+        && data.plantUnit == 'FAC-TEXTURIZING'
+        && data.code is string && data.code == code && isValidActivationCode(code)
+        && data.used == true
+        && data.boundDeviceId is string && isValidId(data.boundDeviceId)
+        && data.claimedByUsername is string && (data.claimedByUsername == '' || isValidAccountName(data.claimedByUsername))
+        && data.claimedByUid is string && data.claimedByUid == request.auth.uid
+        && data.claimedAtEpochMs is int && data.claimedAtEpochMs > 0
+        && data.claimedAt is timestamp && data.claimedAt <= request.time;
+    }
+
+    match /device_licenses/{deviceId} {
+      allow get: if isSignedIn() && isValidId(deviceId);
+      allow list: if false;
+      allow create: if isSignedIn()
+        && isValidId(deviceId)
+        && isValidDeviceLicense(incoming(), deviceId);
+      allow update: if isSignedIn()
+        && isValidId(deviceId)
+        && existing().plantUnit == 'FAC-TEXTURIZING'
+        && isValidDeviceLicense(incoming(), deviceId)
+        && incoming().deviceId == existing().deviceId
+        // Trial start and end timestamps can NEVER move forward (anti-reset / anti-extension)
+        && incoming().firstInstalledAt <= existing().firstInstalledAt
+        && incoming().trialEndsAt <= existing().trialEndsAt
+        // Permanent activation cannot be downgraded back to trial or swapped to a different code
+        && (!existing().isActivated || (incoming().isActivated && incoming().activationCode == existing().activationCode))
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'firstInstalledAt', 'trialEndsAt', 'isActivated', 'activationCode',
+          'activatedAtEpochMs', 'lastUsername', 'updatedByUid', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    match /activation_codes/{code} {
+      allow get: if isSignedIn() && isValidActivationCode(code);
+      allow list: if false;
+      // First claim creates the code document permanently bound to boundDeviceId with used == true
+      allow create: if isSignedIn()
+        && isValidActivationCode(code)
+        && isValidActivationCodeBinding(incoming(), code);
+      // Supports pre-seeded unclaimed docs (used == false -> used == true); immutable once used == true
+      allow update: if isSignedIn()
+        && isValidActivationCode(code)
+        && existing().used == false
+        && isValidActivationCodeBinding(incoming(), code);
+      allow delete: if false;
+    }
+
+    function isValidPasswordHash(val) {
+      return val is string
+        && val.size() >= 48
+        && val.size() <= 256
+        && val.matches('^pbkdf2_sha(256|1)\\$[0-9]{5,6}\\$[0-9a-f]{16,64}\\$[0-9a-f]{32,128}$');
+    }
+
+    function isValidUserProfile(data, username) {
+      return data.keys().hasAll([
+          'plantUnit', 'username', 'email', 'passwordHash',
+          'isVerified', 'uid', 'verifiedAtEpochMs', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'plantUnit', 'username', 'email', 'passwordHash',
+          'isVerified', 'uid', 'verifiedAtEpochMs', 'updatedAt'
+        ])
+        && data.plantUnit == 'FAC-TEXTURIZING'
+        && isValidAccountName(username)
+        && data.username is string && data.username == username
+        && data.email is string && data.email.size() >= 5 && data.email.size() <= 254
+        && isValidPasswordHash(data.passwordHash)
+        && data.isVerified == true
+        && data.uid is string && data.uid == request.auth.uid
+        && data.verifiedAtEpochMs is int && data.verifiedAtEpochMs > 0
+        && data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /users/{username} {
+      // Allow direct single-document lookup by exact username (for login & password reset before auth);
+      // resource == null returns clean non-existent snapshot instead of PERMISSION_DENIED.
+      allow get: if isValidAccountName(username)
+        && (resource == null || resource.data.plantUnit == 'FAC-TEXTURIZING');
+      // Allow authenticated self-lookup ONLY by own uid or own verified email (prevents user enumeration)
+      allow list: if isSignedIn()
+        && resource.data.plantUnit == 'FAC-TEXTURIZING'
+        && (
+          resource.data.uid == request.auth.uid
+          || (request.auth.token.email != null && resource.data.email == request.auth.token.email.lower())
+        );
+      allow create: if isSignedIn()
+        && isValidAccountName(username)
+        && isValidUserProfile(incoming(), username);
+      allow update: if isSignedIn()
+        && isValidAccountName(username)
+        && existing().plantUnit == 'FAC-TEXTURIZING'
+        && (
+          existing().uid == request.auth.uid
+          || (request.auth.token.email != null && existing().email == request.auth.token.email.lower())
+        )
+        && isValidUserProfile(incoming(), username)
+        && incoming().username == existing().username
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'email', 'passwordHash', 'isVerified', 'uid', 'verifiedAtEpochMs', 'updatedAt'
         ]);
       allow delete: if false;
     }

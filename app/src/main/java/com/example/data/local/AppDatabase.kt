@@ -34,6 +34,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        @Suppress("DEPRECATION")
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -42,6 +43,8 @@ abstract class AppDatabase : RoomDatabase() {
                     "sounding_tangki.db"
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigrationOnDowngrade()
                     .build()
                 INSTANCE = instance
                 instance

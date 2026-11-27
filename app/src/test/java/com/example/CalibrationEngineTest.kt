@@ -3,7 +3,6 @@ package com.example
 import com.example.data.CalibrationEngine
 import com.example.data.local.SoundingLogEntity
 import com.example.data.model.DailyReportMetadata
-import com.example.data.model.ReportTimeSlot
 import com.example.data.model.TransferLogItem
 import com.example.util.DailyReportJpgGenerator
 import com.example.util.SoundingFormatters
@@ -143,7 +142,7 @@ class CalibrationEngineTest {
 
         val metadata = DailyReportMetadata(
             dateLabel = "Senin, 23 Nov 26",
-            timeSlot = ReportTimeSlot.PAGI,
+            timeLabel = "09:10 – 09:30",
             operatorName = "Arif & Basri",
             transfers = listOf(
                 TransferLogItem(id = 1L, jam = "09.30", keterangan = "TF T.101 ke T.171", qtyKg = "5000")
@@ -398,7 +397,7 @@ class CalibrationEngineTest {
         assertTrue(SoundingFormatters.buildCsvContent(listOf(legacyLog)).contains("\"RHBDPKL\""))
         val snapshot = DailyReportJpgGenerator.buildReportSnapshot(
             listOf(legacyLog),
-            DailyReportMetadata("Rabu, 25 Nov 26", ReportTimeSlot.PAGI, "Basri", emptyList())
+            DailyReportMetadata("Rabu, 25 Nov 26", "10:00", "Basri", emptyList())
         )
         assertEquals("RHBDPKL", snapshot.leftRows.first { it.tankId == "T.101" }.log?.product)
     }
@@ -491,7 +490,7 @@ class CalibrationEngineTest {
             logs = listOf(lateLog, earlyLog),
             metadata = DailyReportMetadata(
                 dateLabel = "Kamis, 26 Nov 2026",
-                timeSlot = ReportTimeSlot.PAGI,
+                timeLabel = "07:15 – 15:42",
                 operatorName = "Basri",
                 transfers = emptyList()
             )

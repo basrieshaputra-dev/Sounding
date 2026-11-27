@@ -25,17 +25,17 @@ import java.io.FileOutputStream
 
 object ShiftDraftJpgGenerator {
 
-    private const val COLOR_DEEP_TEAL = 0xFF0A525B.toInt()
-    private const val COLOR_LEAF_GREEN = 0xFF498147.toInt()
-    private const val COLOR_INK_DARK = 0xFF0C2A2E.toInt()
-    private const val COLOR_INK_MUTED = 0xFF426266.toInt()
-    private const val COLOR_SOFT_BG = 0xFFF4F8F7.toInt()
-    private const val COLOR_ROW_ALT = 0xFFF8FBFA.toInt()
-    private const val COLOR_LEAF_SOFT = 0xFFE6F3E5.toInt()
+    private const val COLOR_DEEP_TEAL = 0xFF073D43.toInt()
+    private const val COLOR_LEAF_GREEN = 0xFF477C55.toInt()
+    private const val COLOR_INK_DARK = 0xFF073D43.toInt()
+    private const val COLOR_INK_MUTED = 0xFF476061.toInt()
+    private const val COLOR_SOFT_BG = 0xFFF4F7F5.toInt()
+    private const val COLOR_ROW_ALT = 0xFFFBFCFB.toInt()
+    private const val COLOR_LEAF_SOFT = 0xFFE6EFE9.toInt()
     private const val COLOR_AMBER_SOFT = 0xFFFFF8E1.toInt()
     private const val COLOR_AMBER_BORDER = 0xFFE6C25A.toInt()
-    private const val COLOR_BORDER = 0xFFCBDCD7.toInt()
-    private const val COLOR_MINT_TON = 0xFFD8F3DC.toInt()
+    private const val COLOR_BORDER = 0xFFDCE5DF.toInt()
+    private const val COLOR_MINT_TON = 0xFFE6EFE9.toInt()
 
     fun renderToJpegBytes(
         context: Context,
@@ -165,7 +165,7 @@ object ShiftDraftJpgGenerator {
         }
 
         canvas.drawText(
-            "LAPORAN SHIFT HARIAN — PREBLEND & TOWERTANK",
+            "LAPORAN HARIAN — PREBLEND & TOWERTANK",
             margin,
             y + 38f,
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -196,7 +196,7 @@ object ShiftDraftJpgGenerator {
         )
         y += headerH + 14f
 
-        // Shift Identity Strip
+        // Report Identity Strip
         val metaRect = RectF(margin, y, width - margin, y + metaH)
         canvas.drawRoundRect(metaRect, 14f, 14f, softFillPaint)
         canvas.drawRoundRect(metaRect, 14f, 14f, borderPaint)
@@ -212,9 +212,12 @@ object ShiftDraftJpgGenerator {
             typeface = sansBold
             textSize = 22f
         }
+        val reportTimeText = draft.timeLabel.trim().ifBlank {
+            SoundingFormatters.formatLocalTime(System.currentTimeMillis())
+        }
         drawMetaCell(canvas, margin + 20f, y, metaColW - 28f, "HARI & TANGGAL", draft.dateLabel.ifBlank { "-" }, metaLabelPaint, metaValPaint)
-        drawMetaCell(canvas, margin + metaColW + 20f, y, metaColW - 28f, "SHIFT", draft.shift.label, metaLabelPaint, metaValPaint)
-        drawMetaCell(canvas, margin + metaColW * 2 + 20f, y, metaColW - 28f, "OPERATOR", draft.operatorName.ifBlank { "-" }, metaLabelPaint, metaValPaint)
+        drawMetaCell(canvas, margin + metaColW + 20f, y, metaColW - 28f, "WAKTU", reportTimeText, metaLabelPaint, metaValPaint)
+        drawMetaCell(canvas, margin + metaColW * 2 + 20f, y, metaColW - 28f, "AKUN / OPERATOR", draft.operatorName.ifBlank { "-" }, metaLabelPaint, metaValPaint)
         canvas.drawLine(margin + metaColW, y + 14f, margin + metaColW, y + metaH - 14f, divPaint)
         canvas.drawLine(margin + metaColW * 2, y + 14f, margin + metaColW * 2, y + metaH - 14f, divPaint)
         y += metaH + 24f

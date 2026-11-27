@@ -53,11 +53,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.data.model.DailyReportMetadata
-import com.example.data.model.ReportTimeSlot
 import com.example.data.model.TransferLogItem
 import com.example.ui.theme.SoundingThemeExtras
 import com.example.util.SoundingFormatters
-import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,8 +75,8 @@ fun ExportJpgReportSheet(
     var dateLabel by remember(referenceEpochMs) {
         mutableStateOf(SoundingFormatters.formatReportDate(referenceEpochMs))
     }
-    var timeSlot by remember(referenceEpochMs) {
-        mutableStateOf(defaultTimeSlotForEpoch(referenceEpochMs))
+    var timeLabel by remember(referenceEpochMs) {
+        mutableStateOf(SoundingFormatters.formatLocalTime(referenceEpochMs))
     }
     var operatorName by remember { mutableStateOf(initialOperatorName) }
     var nextTransferId by remember { mutableLongStateOf(1L) }
@@ -94,7 +92,7 @@ fun ExportJpgReportSheet(
 
     fun buildMetadata(): DailyReportMetadata = DailyReportMetadata(
         dateLabel = dateLabel.trim().ifBlank { SoundingFormatters.formatReportDate(referenceEpochMs) },
-        timeSlot = timeSlot,
+        timeLabel = timeLabel.trim().ifBlank { SoundingFormatters.formatLocalTime(referenceEpochMs) },
         operatorName = operatorName.trim(),
         transfers = transfers.toList()
     )
@@ -147,53 +145,19 @@ fun ExportJpgReportSheet(
                 shape = MaterialTheme.shapes.medium
             )
 
-            // Waktu: Pagi / Sore / Malam
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = stringResource(R.string.label_report_time),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ReportTimeSlot.entries.forEach { slot ->
-                        val selected = timeSlot == slot
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 48.dp)
-                                .clickable { timeSlot = slot }
-                                .testTag("report_time_${slot.name.lowercase()}"),
-                            shape = MaterialTheme.shapes.medium,
-                            color = if (selected) extras.leafContainer else extras.elevatedSurface,
-                            border = BorderStroke(
-                                width = if (selected) 1.5.dp else 1.dp,
-                                color = if (selected) extras.leafAccent else MaterialTheme.colorScheme.outline
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 12.dp),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = slot.label,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = if (selected) {
-                                        extras.onLeafContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            // Jam / Waktu
+            OutlinedTextField(
+                value = timeLabel,
+                onValueChange = { timeLabel = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("report_time_input"),
+                colors = fieldColors,
+                singleLine = true,
+                label = { Text(stringResource(R.string.label_report_time)) },
+                placeholder = { Text(stringResource(R.string.placeholder_report_time)) },
+                shape = MaterialTheme.shapes.medium
+            )
 
             // Nama Operator
             OutlinedTextField(
@@ -371,14 +335,5 @@ fun ExportJpgReportSheet(
                 }
             }
         }
-    }
-}
-
-private fun defaultTimeSlotForEpoch(epochMs: Long): ReportTimeSlot {
-    val hour = Calendar.getInstance().apply { timeInMillis = epochMs }.get(Calendar.HOUR_OF_DAY)
-    return when {
-        hour in 6..13 -> ReportTimeSlot.PAGI
-        hour in 14..18 -> ReportTimeSlot.SORE
-        else -> ReportTimeSlot.MALAM
     }
 }

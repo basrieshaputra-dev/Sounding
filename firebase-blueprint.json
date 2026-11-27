@@ -2,7 +2,7 @@
   "entities": {
     "CurrentTankStock": {
       "title": "CurrentTankStock",
-      "description": "Latest realtime stock status per tank (T.101..T.122, T.171..T.177, T.50) shared across shifts",
+      "description": "Latest realtime stock status per tank (T.101..T.122, T.171..T.177, T.50) attributed by accountName and timestamp",
       "type": "object",
       "properties": {
         "plantUnit": { "type": "string", "enum": ["FAC-TEXTURIZING"] },
@@ -19,9 +19,12 @@
         "vcf": { "type": "number" },
         "manualKg": { "type": "boolean" },
         "note": { "type": "string" },
-        "lastShift": { "type": "string", "enum": ["Pagi", "Sore", "Malam"] },
-        "lastOperator": { "type": "string" },
+        "accountName": { "type": "string" },
+        "operatorName": { "type": "string" },
         "dateKey": { "type": "string" },
+        "dateLabel": { "type": "string" },
+        "timeLabel": { "type": "string" },
+        "recordedAtEpochMs": { "type": "integer" },
         "updatedByUid": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
@@ -40,16 +43,19 @@
         "vcf",
         "manualKg",
         "note",
-        "lastShift",
-        "lastOperator",
+        "accountName",
+        "operatorName",
         "dateKey",
+        "dateLabel",
+        "timeLabel",
+        "recordedAtEpochMs",
         "updatedByUid",
         "updatedAt"
       ]
     },
     "SoundingHistoryEntry": {
       "title": "SoundingHistoryEntry",
-      "description": "Immutable sounding calculation record saved by shift personnel",
+      "description": "Immutable sounding calculation record attributed by accountName/operatorName and timestamp",
       "type": "object",
       "properties": {
         "plantUnit": { "type": "string", "enum": ["FAC-TEXTURIZING"] },
@@ -57,7 +63,7 @@
         "dateKey": { "type": "string" },
         "dateLabel": { "type": "string" },
         "timeLabel": { "type": "string" },
-        "shift": { "type": "string", "enum": ["Pagi", "Sore", "Malam"] },
+        "accountName": { "type": "string" },
         "operatorName": { "type": "string" },
         "tankId": { "type": "string" },
         "product": { "type": "string" },
@@ -81,7 +87,7 @@
         "dateKey",
         "dateLabel",
         "timeLabel",
-        "shift",
+        "accountName",
         "operatorName",
         "tankId",
         "product",
@@ -102,19 +108,21 @@
     },
     "ShiftReportDoc": {
       "title": "ShiftReportDoc",
-      "description": "Shared Shift Report Draft per date and shift readable across personnel",
+      "description": "Shared tank report draft keyed by dateKey and accountName with timestamp metadata",
       "type": "object",
       "properties": {
         "plantUnit": { "type": "string", "enum": ["FAC-TEXTURIZING"] },
         "dateKey": { "type": "string" },
         "dateLabel": { "type": "string" },
-        "shift": { "type": "string", "enum": ["Pagi", "Sore", "Malam"] },
+        "timeLabel": { "type": "string" },
+        "accountName": { "type": "string" },
         "operatorName": { "type": "string" },
         "nbNote": { "type": "string" },
         "totalAwalKg": { "type": "integer" },
         "totalAkhirKg": { "type": "integer" },
         "transferCount": { "type": "integer" },
         "draftJson": { "type": "string" },
+        "recordedAtEpochMs": { "type": "integer" },
         "updatedByUid": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
@@ -122,20 +130,101 @@
         "plantUnit",
         "dateKey",
         "dateLabel",
-        "shift",
+        "timeLabel",
+        "accountName",
         "operatorName",
         "nbNote",
         "totalAwalKg",
         "totalAkhirKg",
         "transferCount",
         "draftJson",
+        "recordedAtEpochMs",
         "updatedByUid",
+        "updatedAt"
+      ]
+    },
+    "DeviceLicense": {
+      "title": "DeviceLicense",
+      "description": "ANDROID_ID-bound 60-day trial and permanent license record synced across reinstalls and account switches",
+      "type": "object",
+      "properties": {
+        "plantUnit": { "type": "string", "enum": ["FAC-TEXTURIZING"] },
+        "deviceId": { "type": "string" },
+        "firstInstalledAt": { "type": "integer" },
+        "trialEndsAt": { "type": "integer" },
+        "isActivated": { "type": "boolean" },
+        "activationCode": { "type": "string" },
+        "activatedAtEpochMs": { "type": "integer" },
+        "lastUsername": { "type": "string" },
+        "updatedByUid": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "plantUnit",
+        "deviceId",
+        "firstInstalledAt",
+        "trialEndsAt",
+        "isActivated",
+        "activationCode",
+        "activatedAtEpochMs",
+        "lastUsername",
+        "updatedByUid",
+        "updatedAt"
+      ]
+    },
+    "ActivationCodeBinding": {
+      "title": "ActivationCodeBinding",
+      "description": "Single-use activation code (used: false -> true) permanently bound to one ANDROID_ID (boundDeviceId)",
+      "type": "object",
+      "properties": {
+        "plantUnit": { "type": "string", "enum": ["FAC-TEXTURIZING"] },
+        "code": { "type": "string" },
+        "used": { "type": "boolean" },
+        "boundDeviceId": { "type": "string" },
+        "claimedByUsername": { "type": "string" },
+        "claimedByUid": { "type": "string" },
+        "claimedAtEpochMs": { "type": "integer" },
+        "claimedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "plantUnit",
+        "code",
+        "used",
+        "boundDeviceId",
+        "claimedByUsername",
+        "claimedByUid",
+        "claimedAtEpochMs",
+        "claimedAt"
+      ]
+    },
+    "UserAccountProfile": {
+      "title": "UserAccountProfile",
+      "description": "Verified operator account mapping (username -> email + PBKDF2 passwordHash + isVerified = true) for one-time email verification and username+password login",
+      "type": "object",
+      "properties": {
+        "plantUnit": { "type": "string", "enum": ["FAC-TEXTURIZING"] },
+        "username": { "type": "string" },
+        "email": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "isVerified": { "type": "boolean" },
+        "uid": { "type": "string" },
+        "verifiedAtEpochMs": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "plantUnit",
+        "username",
+        "email",
+        "passwordHash",
+        "isVerified",
+        "uid",
+        "verifiedAtEpochMs",
         "updatedAt"
       ]
     }
   },
   "auth": {
-    "providers": ["google.com"]
+    "providers": ["password"]
   },
   "firestore": {
     "/current_tank_stocks/{tankDocId}": {
@@ -144,11 +233,23 @@
     },
     "/sounding_history/{entryId}": {
       "schema": { "$ref": "#/entities/SoundingHistoryEntry" },
-      "description": "Chronological sounding history shared across shifts"
+      "description": "Chronological sounding history attributed by accountName and timestamp"
     },
     "/shift_reports/{reportId}": {
       "schema": { "$ref": "#/entities/ShiftReportDoc" },
-      "description": "Shift report drafts keyed by dateKey_shift for cross-shift monitoring"
+      "description": "Shared report drafts keyed by dateKey and accountName"
+    },
+    "/device_licenses/{deviceId}": {
+      "schema": { "$ref": "#/entities/DeviceLicense" },
+      "description": "Per-device ANDROID_ID trial and license status synced across reinstalls"
+    },
+    "/activation_codes/{code}": {
+      "schema": { "$ref": "#/entities/ActivationCodeBinding" },
+      "description": "Single-use activation code bound permanently to one deviceId"
+    },
+    "/users/{username}": {
+      "schema": { "$ref": "#/entities/UserAccountProfile" },
+      "description": "Verified operator username-to-email and salted password hash mapping"
     }
   }
 }

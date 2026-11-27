@@ -1,7 +1,6 @@
 package com.example
 
 import com.example.data.local.SoundingLogEntity
-import com.example.data.model.ReportTimeSlot
 import com.example.data.model.ShiftDraftEngine
 import com.example.data.model.ShiftReportDraft
 import com.example.data.model.SoundingPointDraft
@@ -151,8 +150,8 @@ class ShiftDraftEngineTest {
         }
         val editedDraft = initial.copy(
             dateLabel = "Rabu, 25 Nov 2026",
-            shift = ReportTimeSlot.MALAM,
-            nbNote = "* Return Mt2 ke 177, Masuk Laporan Pagi, Qty: 1.521 kg",
+            timeLabel = "23:15",
+            nbNote = "* Return Mt2 ke 177, Masuk Laporan, Qty: 1.521 kg",
             transfers = listOf(
                 TransferLogItem(1L, "24.00 - 05.35", "TF Rpo 185 ke 172", "51.825")
             ),
@@ -180,7 +179,7 @@ class ShiftDraftEngineTest {
         val restored = adapter.fromJson(json)
         assertNotNull(restored)
         assertEquals("Rabu, 25 Nov 2026", restored!!.dateLabel)
-        assertEquals(ReportTimeSlot.MALAM, restored.shift)
+        assertEquals("23:15", restored.timeLabel)
         assertEquals(1, restored.transfers.size)
         assertEquals("Empty", restored.tankRows.first { it.tankId == "T.102" }.sAkhir.quantityKg)
         assertTrue(restored.nbNote.contains("1.521"))

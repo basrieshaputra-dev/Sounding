@@ -3,7 +3,6 @@ package com.example.data.model
 import com.example.data.CalibrationEngine
 import com.example.data.local.SoundingLogEntity
 import com.example.util.SoundingFormatters
-import java.util.Calendar
 
 enum class DraftSubTab {
     SUMMARY_TF,
@@ -47,7 +46,7 @@ data class TankShiftDraftRow(
 
 data class ShiftReportDraft(
     val dateLabel: String = "",
-    val shift: ReportTimeSlot = ReportTimeSlot.PAGI,
+    val timeLabel: String = "",
     val operatorName: String = "",
     val nbNote: String = "",
     val transfers: List<TransferLogItem> = emptyList(),
@@ -72,7 +71,7 @@ object ShiftDraftEngine {
         }
         return ShiftReportDraft(
             dateLabel = SoundingFormatters.formatReportDate(refEpoch),
-            shift = defaultShiftForEpoch(refEpoch),
+            timeLabel = SoundingFormatters.formatLocalTime(refEpoch),
             operatorName = defaultOperator,
             nbNote = "",
             transfers = emptyList(),
@@ -108,10 +107,12 @@ object ShiftDraftEngine {
 
         val refEpoch = logs.firstOrNull()?.createdAtEpochMs?.takeIf { it > 0L } ?: System.currentTimeMillis()
         val resolvedDate = current.dateLabel.ifBlank { SoundingFormatters.formatReportDate(refEpoch) }
+        val resolvedTime = current.timeLabel.ifBlank { SoundingFormatters.formatLocalTime(refEpoch) }
         val resolvedOperator = current.operatorName.ifBlank { defaultOperator }
 
         return current.copy(
             dateLabel = resolvedDate,
+            timeLabel = resolvedTime,
             operatorName = resolvedOperator,
             tankRows = updatedRows
         )
@@ -211,11 +212,9 @@ object ShiftDraftEngine {
         if (trimmed.isEmpty() || trimmed == "-" || trimmed.equals("empty", ignoreCase = true)) {
             return 0L
         }
-        // Strip unit suffix if present
         val cleaned = trimmed
             .replace("kg", "", ignoreCase = true)
             .replace(" ", "")
-        // If string uses dots as thousand separators (e.g. 63.974 or 121.718), strip dots
         val dotParts = cleaned.split('.')
         val normalized = if (dotParts.size >= 2 && dotParts.drop(1).all { it.length == 3 && it.all(Char::isDigit) }) {
             cleaned.replace(".", "").replace(",", ".")
@@ -258,14 +257,5 @@ object ShiftDraftEngine {
         val endKg = parseQuantityKg(row.sAkhir.quantityKg)
         val diff = endKg - startKg
         return if (diff == 0L) null else diff
-    }
-
-    fun defaultShiftForEpoch(epochMs: Long): ReportTimeSlot {
-        val hour = Calendar.getInstance().apply { timeInMillis = epochMs }.get(Calendar.HOUR_OF_DAY)
-        return when {
-            hour in 6..13 -> ReportTimeSlot.PAGI
-            hour in 14..18 -> ReportTimeSlot.SORE
-            else -> ReportTimeSlot.MALAM
-        }
     }
 }

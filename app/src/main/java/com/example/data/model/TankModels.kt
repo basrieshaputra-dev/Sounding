@@ -63,12 +63,6 @@ data class SoundingCalculation(
     val levelFillPercent: Double
 )
 
-enum class ReportTimeSlot(val label: String) {
-    PAGI("Pagi"),
-    SORE("Sore"),
-    MALAM("Malam")
-}
-
 data class TransferLogItem(
     val id: Long,
     val jam: String = "",
@@ -78,7 +72,7 @@ data class TransferLogItem(
 
 data class DailyReportMetadata(
     val dateLabel: String,
-    val timeSlot: ReportTimeSlot,
+    val timeLabel: String = "",
     val operatorName: String,
     val transfers: List<TransferLogItem>
 )

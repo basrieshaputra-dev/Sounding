@@ -49,15 +49,15 @@ object DailyReportJpgGenerator {
     val LEFT_COLUMN_TANKS = listOf("T.101", "T.111", "T.102", "T.112", "T.121", "T.122")
     val RIGHT_COLUMN_TANKS = listOf("T.171", "T.172", "T.173", "T.174", "T.176", "T.177", "T.50")
 
-    private const val COLOR_DEEP_TEAL = 0xFF0A525B.toInt()
-    private const val COLOR_LEAF_GREEN = 0xFF498147.toInt()
-    private const val COLOR_INK_DARK = 0xFF0C2A2E.toInt()
-    private const val COLOR_INK_MUTED = 0xFF426266.toInt()
-    private const val COLOR_SOFT_BG = 0xFFF4F8F7.toInt()
-    private const val COLOR_ROW_ALT = 0xFFF8FBFA.toInt()
-    private const val COLOR_LEAF_SOFT = 0xFFE3F1E2.toInt()
-    private const val COLOR_BORDER = 0xFFCBDCD7.toInt()
-    private const val COLOR_MINT_TON = 0xFFD8F3DC.toInt()
+    private const val COLOR_DEEP_TEAL = 0xFF073D43.toInt()
+    private const val COLOR_LEAF_GREEN = 0xFF477C55.toInt()
+    private const val COLOR_INK_DARK = 0xFF073D43.toInt()
+    private const val COLOR_INK_MUTED = 0xFF476061.toInt()
+    private const val COLOR_SOFT_BG = 0xFFF4F7F5.toInt()
+    private const val COLOR_ROW_ALT = 0xFFFBFCFB.toInt()
+    private const val COLOR_LEAF_SOFT = 0xFFE6EFE9.toInt()
+    private const val COLOR_BORDER = 0xFFDCE5DF.toInt()
+    private const val COLOR_MINT_TON = 0xFFE6EFE9.toInt()
 
     fun buildReportSnapshot(
         logs: List<SoundingLogEntity>,
@@ -277,16 +277,16 @@ object DailyReportJpgGenerator {
             earliestEpochMs = snapshot.earliestLogEpochMs,
             latestEpochMs = snapshot.latestLogEpochMs
         )
-        val timeText = if (timeRange.isNotEmpty()) {
-            "${snapshot.metadata.timeSlot.label} ($timeRange)"
-        } else {
-            snapshot.metadata.timeSlot.label
+        val timeText = timeRange.ifBlank {
+            snapshot.metadata.timeLabel.trim().ifBlank {
+                SoundingFormatters.formatLocalTime(snapshot.latestLogEpochMs ?: System.currentTimeMillis())
+            }
         }
         val operatorText = snapshot.metadata.operatorName.ifBlank { "-" }
 
         drawMetaCell(canvas, margin + 20f, y, metaColW - 24f, "HARI & TANGGAL", dateText, metaLabelPaint, metaValPaint)
         drawMetaCell(canvas, margin + metaColW + 20f, y, metaColW - 24f, "WAKTU", timeText, metaLabelPaint, metaValPaint)
-        drawMetaCell(canvas, margin + metaColW * 2 + 20f, y, metaColW - 24f, "OPERATOR", operatorText, metaLabelPaint, metaValPaint)
+        drawMetaCell(canvas, margin + metaColW * 2 + 20f, y, metaColW - 24f, "AKUN / OPERATOR", operatorText, metaLabelPaint, metaValPaint)
 
         // Vertical dividers inside meta card
         val divPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

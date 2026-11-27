@@ -52,7 +52,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -80,33 +82,51 @@ import java.util.Locale
 
 @Composable
 fun LicenseExpiredScreen(
-    onActivateLicense: (String) -> LicenseActivationResult,
+    onActivateLicense: suspend (String) -> LicenseActivationResult,
     onActivatedSuccess: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val extras = SoundingThemeExtras.colors
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var codeInput by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isSubmitting by remember { mutableStateOf(false) }
 
     fun attemptActivation() {
-        when (val result = onActivateLicense(codeInput)) {
-            is LicenseActivationResult.Success -> {
-                errorMessage = null
-                onActivatedSuccess(result.code)
-            }
-            is LicenseActivationResult.AlreadyActivated -> {
-                errorMessage = null
-                onActivatedSuccess(result.activeCode)
-            }
-            LicenseActivationResult.EmptyCode -> {
-                errorMessage = context.getString(R.string.license_error_empty)
-            }
-            is LicenseActivationResult.AlreadyUsed -> {
-                errorMessage = context.getString(R.string.license_error_used, result.code)
-            }
-            is LicenseActivationResult.InvalidCode -> {
-                errorMessage = context.getString(R.string.license_error_invalid)
+        if (isSubmitting) return
+        isSubmitting = true
+        scope.launch {
+            try {
+                when (val result = onActivateLicense(codeInput)) {
+                    is LicenseActivationResult.Success -> {
+                        errorMessage = null
+                        onActivatedSuccess(result.code)
+                    }
+                    is LicenseActivationResult.AlreadyActivated -> {
+                        errorMessage = null
+                        onActivatedSuccess(result.activeCode)
+                    }
+                    LicenseActivationResult.EmptyCode -> {
+                        errorMessage = context.getString(R.string.license_error_empty)
+                    }
+                    is LicenseActivationResult.AlreadyUsed -> {
+                        errorMessage = context.getString(R.string.license_error_used, result.code)
+                    }
+                    is LicenseActivationResult.BoundToOtherDevice -> {
+                        errorMessage = context.getString(R.string.license_error_bound_other_device, result.code)
+                    }
+                    is LicenseActivationResult.InvalidCode -> {
+                        errorMessage = context.getString(R.string.license_error_invalid)
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                errorMessage = e.localizedMessage
+                    ?: context.getString(R.string.msg_about_action_failed)
+            } finally {
+                isSubmitting = false
             }
         }
     }
@@ -128,13 +148,17 @@ fun LicenseExpiredScreen(
                 .padding(horizontal = 16.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Corporate Branded Hero Banner
+            // Corporate Branded Hero Banner (Clean Text-Only Neo-Industrial)
             val heroBrush = Brush.linearGradient(
-                colors = listOf(BrandDeepTeal, Color(0xFF1A6457), BrandLeafGreen)
+                colors = listOf(
+                    extras.headerGradientStart,
+                    extras.headerGradientMid,
+                    extras.headerGradientEnd
+                )
             )
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
+                shape = RoundedCornerShape(20.dp),
                 color = Color.Transparent,
                 shadowElevation = 4.dp
             ) {
@@ -144,36 +168,20 @@ fun LicenseExpiredScreen(
                         .background(heroBrush)
                         .drawBehind {
                             drawCircle(
-                                color = Color.White.copy(alpha = 0.08f),
+                                color = Color.White.copy(alpha = 0.06f),
                                 radius = size.minDimension * 0.56f,
                                 center = Offset(size.width * 0.90f, size.height * 0.14f)
                             )
                             drawCircle(
-                                color = Color.White.copy(alpha = 0.06f),
+                                color = Color.White.copy(alpha = 0.05f),
                                 radius = size.minDimension * 0.42f,
                                 center = Offset(size.width * 0.10f, size.height * 0.90f)
                             )
                         }
                         .padding(horizontal = 20.dp, vertical = 22.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Surface(
-                        modifier = Modifier.size(72.dp),
-                        shape = RoundedCornerShape(18.dp),
-                        color = Color.White,
-                        shadowElevation = 5.dp
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_company_logo),
-                            contentDescription = stringResource(R.string.cd_company_logo),
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(9.dp)
-                        )
-                    }
-
                     Text(
                         text = stringResource(R.string.app_header_title),
                         style = MaterialTheme.typography.titleLarge.copy(
@@ -190,7 +198,7 @@ fun LicenseExpiredScreen(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.6.sp
                         ),
-                        color = Color.White.copy(alpha = 0.92f),
+                        color = extras.headerSubtitleAccent,
                         textAlign = TextAlign.Center
                     )
 
@@ -270,33 +278,52 @@ fun LicenseExpiredScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LicenseActivationBottomSheet(
-    onActivateLicense: (String) -> LicenseActivationResult,
+    onActivateLicense: suspend (String) -> LicenseActivationResult,
     onActivatedSuccess: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val extras = SoundingThemeExtras.colors
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var codeInput by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isSubmitting by remember { mutableStateOf(false) }
 
     fun attemptActivation() {
-        when (val result = onActivateLicense(codeInput)) {
-            is LicenseActivationResult.Success -> {
-                errorMessage = null
-                onActivatedSuccess(result.code)
-            }
-            is LicenseActivationResult.AlreadyActivated -> {
-                errorMessage = null
-                onActivatedSuccess(result.activeCode)
-            }
-            LicenseActivationResult.EmptyCode -> {
-                errorMessage = context.getString(R.string.license_error_empty)
-            }
-            is LicenseActivationResult.AlreadyUsed -> {
-                errorMessage = context.getString(R.string.license_error_used, result.code)
-            }
-            is LicenseActivationResult.InvalidCode -> {
-                errorMessage = context.getString(R.string.license_error_invalid)
+        if (isSubmitting) return
+        isSubmitting = true
+        scope.launch {
+            try {
+                when (val result = onActivateLicense(codeInput)) {
+                    is LicenseActivationResult.Success -> {
+                        errorMessage = null
+                        onActivatedSuccess(result.code)
+                    }
+                    is LicenseActivationResult.AlreadyActivated -> {
+                        errorMessage = null
+                        onActivatedSuccess(result.activeCode)
+                    }
+                    LicenseActivationResult.EmptyCode -> {
+                        errorMessage = context.getString(R.string.license_error_empty)
+                    }
+                    is LicenseActivationResult.AlreadyUsed -> {
+                        errorMessage = context.getString(R.string.license_error_used, result.code)
+                    }
+                    is LicenseActivationResult.BoundToOtherDevice -> {
+                        errorMessage = context.getString(R.string.license_error_bound_other_device, result.code)
+                    }
+                    is LicenseActivationResult.InvalidCode -> {
+                        errorMessage = context.getString(R.string.license_error_invalid)
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                errorMessage = e.localizedMessage
+                    ?: context.getString(R.string.msg_about_action_failed)
+            } finally {
+                isSubmitting = false
             }
         }
     }
@@ -304,7 +331,8 @@ fun LicenseActivationBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        containerColor = extras.glassSheetSurface
     ) {
         Column(
             modifier = Modifier

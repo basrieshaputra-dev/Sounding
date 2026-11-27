@@ -12,6 +12,7 @@ class LicenseManagerTest {
 
     private class InMemoryLicenseStorage : LicenseStorage {
         private var firstLaunch: Long = 0L
+        private var trialEndsAt: Long = 0L
         private var maxObserved: Long = 0L
         private var activated: Boolean = false
         private var activatedCode: String = ""
@@ -21,6 +22,11 @@ class LicenseManagerTest {
         override fun getFirstLaunchEpochMs(): Long = firstLaunch
         override fun setFirstLaunchEpochMs(epochMs: Long) {
             firstLaunch = epochMs
+        }
+
+        override fun getTrialEndsAtEpochMs(): Long = trialEndsAt
+        override fun setTrialEndsAtEpochMs(epochMs: Long) {
+            trialEndsAt = epochMs
         }
 
         override fun getMaxObservedEpochMs(): Long = maxObserved
@@ -42,6 +48,16 @@ class LicenseManagerTest {
 
         override fun persistUsedCodes(usedCodes: Set<String>) {
             this.usedCodes = usedCodes.toSet()
+        }
+
+        override fun revokeUnverifiedActivation(blockedCode: String) {
+            activated = false
+            activatedCode = ""
+            activatedAt = 0L
+            val normalized = LicenseManager.normalizeCode(blockedCode)
+            if (normalized.isNotEmpty()) {
+                usedCodes = usedCodes + normalized
+            }
         }
 
         fun resetActivationKeepingUsedCodes() {
@@ -161,5 +177,54 @@ class LicenseManagerTest {
         val secondCode = manager.activateCode("SPTF-4691")
         assertTrue(secondCode is LicenseActivationResult.Success)
         assertEquals(setOf("SPTF-3916", "SPTF-4691"), storage.getUsedCodes())
+    }
+
+    @Test
+    fun mergeRemoteDeviceLicensePreservesEarlierTrialAfterClearDataOrReinstall() {
+        val freshStorageAfterClearData = InMemoryLicenseStorage()
+        val originalInstall = 1_700_000_000_000L
+        val originalTrialEnd = originalInstall + LicenseManager.TRIAL_DURATION_MS
+        val reinstallDay45 = originalInstall + (45L * LicenseManager.MILLIS_PER_DAY)
+
+        val manager = LicenseManager(freshStorageAfterClearData) { reinstallDay45 }
+        // Before cloud sync, fresh install thinks 60 days remain
+        val localFresh = manager.refreshState()
+        assertEquals(60, localFresh.remainingTrialDays)
+        assertFalse(localFresh.isTrialExpired)
+
+        // Cloud device_licenses/{deviceId} returns original firstInstalledAt & trialEndsAt
+        val afterSync = manager.mergeRemoteDeviceLicense(
+            remoteFirstInstalledAt = originalInstall,
+            remoteTrialEndsAt = originalTrialEnd,
+            remoteIsActivated = false,
+            remoteActivationCode = "",
+            remoteActivatedAtEpochMs = 0L
+        )
+        assertEquals(originalInstall, afterSync.firstLaunchEpochMs)
+        assertEquals(originalTrialEnd, afterSync.trialEndEpochMs)
+        assertEquals(15, afterSync.remainingTrialDays)
+        assertFalse(afterSync.isTrialExpired)
+    }
+
+    @Test
+    fun revokeUnverifiedOfflineActivationRevertsToTrialAndBlocksCode() {
+        val storage = InMemoryLicenseStorage()
+        val day0 = 1_700_000_000_000L
+        var now = day0
+        val manager = LicenseManager(storage) { now }
+        manager.refreshState()
+
+        // Trial expires at day 65, user attempts offline activation with another phone's code
+        now = day0 + (65L * LicenseManager.MILLIS_PER_DAY)
+        val offlineActivation = manager.activateCode("SPTF-6259")
+        assertTrue(offlineActivation is LicenseActivationResult.Success)
+        assertTrue(manager.refreshState().isActivated)
+
+        // Reconnect discovers SPTF-6259 belongs to another ANDROID_ID -> revoke local activation
+        val afterRevoke = manager.revokeUnverifiedOfflineActivation("SPTF-6259")
+        assertFalse(afterRevoke.isActivated)
+        assertTrue(afterRevoke.isTrialExpired)
+        assertTrue("SPTF-6259" in afterRevoke.usedCodes)
+        assertTrue(manager.activateCode("SPTF-6259") is LicenseActivationResult.AlreadyUsed)
     }
 }

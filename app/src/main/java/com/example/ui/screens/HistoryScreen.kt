@@ -70,7 +70,6 @@ import com.example.R
 import com.example.data.firebase.CurrentTankStockDoc
 import com.example.data.firebase.HistoryRecordItem
 import com.example.data.local.SoundingLogEntity
-import com.example.data.model.ReportTimeSlot
 import com.example.ui.DateFilterOption
 import com.example.ui.FILTER_ALL
 import com.example.ui.SoundingUiState
@@ -84,7 +83,7 @@ import com.example.util.SoundingFormatters
 fun HistoryScreen(
     uiState: SoundingUiState,
     onSelectDateFilter: (String) -> Unit,
-    onSelectShiftFilter: (String) -> Unit,
+    onSelectAccountFilter: (String) -> Unit,
     onOpenExportJpg: () -> Unit,
     onExportCsv: () -> Unit,
     onCopyLogWa: (SoundingLogEntity) -> Unit,
@@ -115,14 +114,15 @@ fun HistoryScreen(
                 )
             }
 
-            // 2. Cross-Shift Filter Card (Tanggal & Shift)
-            item(key = "cross_shift_filter") {
-                CrossShiftFilterCard(
+            // 2. Filter Card (Tanggal & Akun)
+            item(key = "history_filter") {
+                HistoryFilterCard(
                     availableDates = uiState.availableHistoryDates,
+                    availableAccounts = uiState.availableHistoryAccounts,
                     selectedDateKey = uiState.historyDateFilter,
-                    selectedShift = uiState.historyShiftFilter,
+                    selectedAccount = uiState.historyAccountFilter,
                     onSelectDate = onSelectDateFilter,
-                    onSelectShift = onSelectShiftFilter
+                    onSelectAccount = onSelectAccountFilter
                 )
             }
 
@@ -244,7 +244,7 @@ fun HistoryScreen(
             if (records.isEmpty()) {
                 item(key = "empty_history") {
                     val isFiltered = uiState.historyDateFilter != FILTER_ALL ||
-                        uiState.historyShiftFilter != FILTER_ALL
+                        uiState.historyAccountFilter != FILTER_ALL
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -437,9 +437,23 @@ private fun RealtimeTankStocksCard(
                     contentPadding = PaddingValues(vertical = 2.dp)
                 ) {
                     items(items = stocks, key = { it.id.ifBlank { it.tankId } }) { stock ->
+                        val timeText = stock.timeLabel.ifBlank {
+                            if (stock.updatedAtEpochMs > 0L) {
+                                SoundingFormatters.formatLocalTime(stock.updatedAtEpochMs)
+                            } else {
+                                ""
+                            }
+                        }
+                        val dateText = stock.dateLabel.ifBlank {
+                            if (stock.updatedAtEpochMs > 0L) {
+                                SoundingFormatters.formatLocalDate(stock.updatedAtEpochMs)
+                            } else {
+                                ""
+                            }
+                        }
                         Surface(
                             modifier = Modifier
-                                .width(164.dp)
+                                .width(172.dp)
                                 .testTag("realtime_stock_${stock.tankId}"),
                             shape = MaterialTheme.shapes.medium,
                             color = extras.elevatedSurface,
@@ -456,7 +470,7 @@ private fun RealtimeTankStocksCard(
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(6.dp),
-                                        color = BrandDeepTeal
+                                        color = extras.executiveActionSurface
                                     ) {
                                         Text(
                                             text = stock.tankId,
@@ -465,11 +479,13 @@ private fun RealtimeTankStocksCard(
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
                                     }
-                                    Text(
-                                        text = stock.lastShift,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = extras.leafAccentReadable
-                                    )
+                                    if (timeText.isNotEmpty()) {
+                                        Text(
+                                            text = timeText,
+                                            style = MonoTypography.badge.copy(fontWeight = FontWeight.Bold),
+                                            color = extras.leafAccentReadable
+                                        )
+                                    }
                                 }
 
                                 Text(
@@ -496,17 +512,12 @@ private fun RealtimeTankStocksCard(
                                     overflow = TextOverflow.Ellipsis
                                 )
 
-                                val timeStr = if (stock.updatedAtEpochMs > 0L) {
-                                    SoundingFormatters.formatLocalTime(stock.updatedAtEpochMs)
-                                } else {
-                                    ""
-                                }
-                                val opText = listOf(stock.lastOperator.trim(), timeStr)
+                                val metaText = listOf(stock.displayAccountName.trim(), dateText)
                                     .filter { it.isNotEmpty() }
                                     .joinToString(" • ")
-                                if (opText.isNotEmpty()) {
+                                if (metaText.isNotEmpty()) {
                                     Text(
-                                        text = opText,
+                                        text = metaText,
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
@@ -523,20 +534,15 @@ private fun RealtimeTankStocksCard(
 }
 
 @Composable
-private fun CrossShiftFilterCard(
+private fun HistoryFilterCard(
     availableDates: List<DateFilterOption>,
+    availableAccounts: List<String>,
     selectedDateKey: String,
-    selectedShift: String,
+    selectedAccount: String,
     onSelectDate: (String) -> Unit,
-    onSelectShift: (String) -> Unit
+    onSelectAccount: (String) -> Unit
 ) {
     val extras = SoundingThemeExtras.colors
-    val shiftOptions = listOf(
-        FILTER_ALL to stringResource(R.string.filter_shift_all),
-        ReportTimeSlot.PAGI.label to ReportTimeSlot.PAGI.label,
-        ReportTimeSlot.SORE.label to ReportTimeSlot.SORE.label,
-        ReportTimeSlot.MALAM.label to ReportTimeSlot.MALAM.label
-    )
 
     Card(
         modifier = Modifier
@@ -570,46 +576,6 @@ private fun CrossShiftFilterCard(
                 )
             }
 
-            // Shift filter row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                shiftOptions.forEach { (value, label) ->
-                    val selected = selectedShift == value
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 40.dp)
-                            .clickable { onSelectShift(value) }
-                            .testTag("history_shift_filter_${value.lowercase()}"),
-                        shape = RoundedCornerShape(9.dp),
-                        color = if (selected) BrandDeepTeal else extras.elevatedSurface,
-                        border = BorderStroke(
-                            width = if (selected) 1.5.dp else 1.dp,
-                            color = if (selected) BrandDeepTeal else extras.cardBorder
-                        )
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp, horizontal = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-                                ),
-                                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-            }
-
             // Date filter horizontal chips
             Row(
                 modifier = Modifier
@@ -617,19 +583,48 @@ private fun CrossShiftFilterCard(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                DateChip(
+                FilterPillChip(
                     label = stringResource(R.string.filter_date_all),
                     selected = selectedDateKey == FILTER_ALL,
+                    usePrimaryFill = true,
                     onClick = { onSelectDate(FILTER_ALL) },
                     testTag = "history_date_filter_all"
                 )
                 availableDates.forEach { opt ->
-                    DateChip(
+                    FilterPillChip(
                         label = opt.label,
                         selected = selectedDateKey == opt.dateKey,
+                        usePrimaryFill = true,
                         onClick = { onSelectDate(opt.dateKey) },
                         testTag = "history_date_filter_${opt.dateKey}"
                     )
+                }
+            }
+
+            // Account filter horizontal chips
+            if (availableAccounts.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    FilterPillChip(
+                        label = stringResource(R.string.filter_account_all),
+                        selected = selectedAccount == FILTER_ALL,
+                        usePrimaryFill = false,
+                        onClick = { onSelectAccount(FILTER_ALL) },
+                        testTag = "history_account_filter_all"
+                    )
+                    availableAccounts.forEach { account ->
+                        FilterPillChip(
+                            label = account,
+                            selected = selectedAccount.equals(account, ignoreCase = true),
+                            usePrimaryFill = false,
+                            onClick = { onSelectAccount(account) },
+                            testTag = "history_account_filter_$account"
+                        )
+                    }
                 }
             }
         }
@@ -637,23 +632,40 @@ private fun CrossShiftFilterCard(
 }
 
 @Composable
-private fun DateChip(
+private fun FilterPillChip(
     label: String,
     selected: Boolean,
+    usePrimaryFill: Boolean,
     onClick: () -> Unit,
     testTag: String
 ) {
     val extras = SoundingThemeExtras.colors
+    val containerColor = when {
+        selected && usePrimaryFill -> extras.executiveActionSurface
+        selected -> extras.leafContainer
+        else -> extras.elevatedSurface
+    }
+    val borderColor = when {
+        selected && usePrimaryFill -> extras.executiveActionSurface
+        selected -> extras.leafAccent
+        else -> extras.cardBorder
+    }
+    val contentColor = when {
+        selected && usePrimaryFill -> Color.White
+        selected -> extras.onLeafContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
     Surface(
         modifier = Modifier
             .heightIn(min = 38.dp)
             .clickable(onClick = onClick)
             .testTag(testTag),
         shape = RoundedCornerShape(999.dp),
-        color = if (selected) extras.leafContainer else extras.elevatedSurface,
+        color = containerColor,
         border = BorderStroke(
             width = if (selected) 1.5.dp else 1.dp,
-            color = if (selected) extras.leafAccent else extras.cardBorder
+            color = borderColor
         )
     ) {
         Box(
@@ -665,7 +677,7 @@ private fun DateChip(
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                 ),
-                color = if (selected) extras.onLeafContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                color = contentColor
             )
         }
     }
@@ -758,7 +770,7 @@ private fun SoundingLogCard(
                 }
             }
 
-            // Timestamp + Shift + Operator + Cloud sync metadata row
+            // Full Timestamp + Account + Cloud sync metadata row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -791,25 +803,10 @@ private fun SoundingLogCard(
                     }
                 }
 
-                if (record.shiftLabel.isNotBlank()) {
+                if (record.displayAccountName.isNotBlank()) {
                     Surface(
                         shape = MaterialTheme.shapes.small,
                         color = extras.subtleTealTint
-                    ) {
-                        Text(
-                            text = "Shift ${record.shiftLabel}",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = extras.metricValueInk,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-
-                if (record.operatorName.isNotBlank()) {
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = extras.elevatedSurface,
-                        border = BorderStroke(1.dp, extras.cardBorder)
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
@@ -819,13 +816,13 @@ private fun SoundingLogCard(
                             Icon(
                                 imageVector = Icons.Default.Person,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = extras.metricValueInk,
                                 modifier = Modifier.size(12.dp)
                             )
                             Text(
-                                text = record.operatorName,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = record.displayAccountName,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = extras.metricValueInk
                             )
                         }
                     }

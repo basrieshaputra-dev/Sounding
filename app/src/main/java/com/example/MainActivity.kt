@@ -1,10 +1,13 @@
 package com.example
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
@@ -25,6 +28,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -40,10 +44,14 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
@@ -87,81 +95,182 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.key
+import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.data.local.ProductPreferences
+import com.example.data.firebase.EmailVerificationAuthHelper
+import com.example.data.firebase.FirebaseSafeProvider
 import com.example.ui.AppTab
+import com.example.ui.AppUpdateStatus
+import com.example.ui.AppUpdateUiState
+import com.example.ui.AppUpdateViewModel
 import com.example.ui.SoundingUiState
 import com.example.ui.SoundingViewModel
+import com.example.ui.UsernamePasswordLoginResult
 import com.example.ui.components.ExportDraftJpgBottomSheet
 import com.example.ui.components.ExportJpgReportSheet
+import com.example.ui.components.UpdateAvailableBanner
+import com.example.ui.components.UpdateAvailableDialog
 import com.example.ui.screens.AboutScreen
-import com.example.ui.screens.AuthScreen
+import com.example.ui.screens.BlendingScreen
 import com.example.ui.screens.CalculatorScreen
 import com.example.ui.screens.DraftReportScreen
 import com.example.ui.screens.HistoryScreen
 import com.example.ui.screens.LicenseActivationBottomSheet
 import com.example.ui.screens.LicenseExpiredScreen
-import com.example.ui.screens.performFirebaseSignOut
+import com.example.ui.screens.OperatorAuthScreen
+import com.example.ui.screens.SwitchUsernameBottomSheet
 import com.example.ui.theme.MonoTypography
 import com.example.ui.theme.SoundingTangkiTheme
 import com.example.ui.theme.SoundingThemeExtras
+import com.example.util.AppUpdateChecker
+import com.example.util.AppUpdateNotifier
 import com.example.util.DailyReportJpgGenerator
+import com.example.util.GitHubReleaseInfo
 import com.example.util.ShiftDraftJpgGenerator
 import com.example.util.SoundingFormatters
-import com.google.firebase.Firebase
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.auth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private data class EmailVerificationRequest(
+    val username: String,
+    val email: String = ""
+)
+
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        FirebaseSafeProvider.ensureInitialized(applicationContext)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
         setContent {
-            val auth = remember { Firebase.auth }
-            var currentUser by remember { mutableStateOf(auth.currentUser) }
+            val viewModel: SoundingViewModel = viewModel(
+                factory = SoundingViewModel.provideFactory(applicationContext)
+            )
+            val updateViewModel: AppUpdateViewModel = viewModel()
+            val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+            val updateUiState by updateViewModel.uiState.collectAsStateWithLifecycle()
+            var authOverlayRequest by remember { mutableStateOf<EmailVerificationRequest?>(null) }
+            var hasRequestedNotifPermission by remember { mutableStateOf(false) }
+            var deferredNotificationRelease by remember { mutableStateOf<GitHubReleaseInfo?>(null) }
 
-            DisposableEffect(auth) {
-                val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
-                    currentUser = firebaseAuth.currentUser
+            val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission()
+            ) { granted ->
+                val queued = deferredNotificationRelease
+                deferredNotificationRelease = null
+                if (granted && queued != null) {
+                    AppUpdateNotifier.showUpdateNotification(applicationContext, queued)
                 }
-                auth.addAuthStateListener(listener)
-                onDispose { auth.removeAuthStateListener(listener) }
             }
 
-            val user = currentUser
-            if (user == null) {
-                val isDarkDefault = remember {
-                    ProductPreferences(applicationContext).loadDarkTheme(defaultValue = false)
-                }
-                SoundingTangkiTheme(darkTheme = isDarkDefault) {
-                    AuthScreen(
-                        onSignedIn = { signedInUser -> currentUser = signedInUser }
-                    )
-                }
-            } else {
-                key(user.uid) {
-                    val viewModel: SoundingViewModel = viewModel(
-                        key = user.uid,
-                        factory = SoundingViewModel.provideFactory(applicationContext)
-                    )
-                    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+            // Automatic asynchronous check for latest GitHub release once when the app opens
+            LaunchedEffect(Unit) {
+                AppUpdateNotifier.ensureNotificationChannel(applicationContext)
+                updateViewModel.checkAutomaticallyOnce()
+            }
 
-                    SoundingTangkiTheme(darkTheme = uiState.isDarkTheme) {
-                        SoundingTangkiApp(
-                            uiState = uiState,
-                            viewModel = viewModel
-                        )
+            // Dispatch local Android notification safely when an update is detected
+            LaunchedEffect(updateUiState.pendingNotificationRelease) {
+                val pendingRelease = updateUiState.pendingNotificationRelease ?: return@LaunchedEffect
+                updateViewModel.consumePendingNotification()
+                if (AppUpdateNotifier.hasNotificationPermission(applicationContext)) {
+                    AppUpdateNotifier.showUpdateNotification(applicationContext, pendingRelease)
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasRequestedNotifPermission) {
+                    hasRequestedNotifPermission = true
+                    deferredNotificationRelease = pendingRelease
+                    runCatching {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }.onFailure {
+                        deferredNotificationRelease = null
                     }
+                }
+            }
+
+            fun openUpdateDownload(release: GitHubReleaseInfo) {
+                val opened = AppUpdateChecker.openUpdateDownloadUrl(
+                    context = this@MainActivity,
+                    rawUrl = release.bestDownloadUrl
+                )
+                if (!opened) {
+                    runCatching {
+                        Toast.makeText(
+                            this@MainActivity,
+                            getString(R.string.msg_update_browser_failed),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            }
+
+            val showAuthScreen = !uiState.isOperatorLoggedIn || authOverlayRequest != null
+
+            SoundingTangkiTheme(darkTheme = uiState.isDarkTheme) {
+                if (showAuthScreen) {
+                    val req = authOverlayRequest
+                    OperatorAuthScreen(
+                        verifiedAccounts = uiState.verifiedAccounts,
+                        pendingVerification = uiState.pendingEmailVerification,
+                        initialAccountName = req?.username ?: uiState.activeAccountName,
+                        initialEmail = req?.email ?: uiState.activeOperatorEmail,
+                        forceRegisterTab = req != null,
+                        allowCancelBack = uiState.isOperatorLoggedIn && req != null,
+                        isOnlineRealtime = uiState.isOnlineRealtime,
+                        onLoginWithUsernamePassword = { rawUsername, rawPassword ->
+                            val result = viewModel.authenticateWithUsernameAndPassword(rawUsername, rawPassword)
+                            if (result is UsernamePasswordLoginResult.Success) {
+                                authOverlayRequest = null
+                            }
+                            result
+                        },
+                        onResolvePasswordResetEmail = viewModel::resolveEmailForPasswordReset,
+                        onSavePendingVerification = { rawUsername, email, passwordHash ->
+                            viewModel.savePendingEmailVerification(rawUsername, email, passwordHash)
+                        },
+                        onClearPendingVerification = {
+                            viewModel.clearPendingEmailVerification()
+                        },
+                        onAccountEmailVerified = { rawUsername, email, passwordHash ->
+                            viewModel.completeVerifiedAccountRegistration(rawUsername, email, passwordHash)
+                            authOverlayRequest = null
+                        },
+                        onCancelBack = { authOverlayRequest = null }
+                    )
+                } else {
+                    SoundingTangkiApp(
+                        uiState = uiState,
+                        viewModel = viewModel,
+                        updateUiState = updateUiState,
+                        onCheckForUpdate = { updateViewModel.checkForUpdates(isManual = true) },
+                        onOpenUpdateDialog = updateViewModel::openUpdateDialog,
+                        onDismissUpdateBanner = updateViewModel::dismissUpdateBanner,
+                        onDownloadUpdate = ::openUpdateDownload,
+                        onOpenEmailVerification = { username, email ->
+                            authOverlayRequest = EmailVerificationRequest(
+                                username = username,
+                                email = email
+                            )
+                        }
+                    )
+                }
+
+                val dialogRelease = updateUiState.availableRelease
+                if (updateUiState.showUpdateDialog && dialogRelease != null) {
+                    UpdateAvailableDialog(
+                        currentVersionLabel = updateUiState.currentVersionLabel,
+                        release = dialogRelease,
+                        onDownloadApk = { release ->
+                            updateViewModel.dismissUpdateDialog()
+                            openUpdateDownload(release)
+                        },
+                        onDismiss = updateViewModel::dismissUpdateDialog
+                    )
                 }
             }
         }
@@ -171,7 +280,13 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun SoundingTangkiApp(
     uiState: SoundingUiState,
-    viewModel: SoundingViewModel
+    viewModel: SoundingViewModel,
+    updateUiState: AppUpdateUiState,
+    onCheckForUpdate: () -> Unit,
+    onOpenUpdateDialog: () -> Unit,
+    onDismissUpdateBanner: () -> Unit,
+    onDownloadUpdate: (GitHubReleaseInfo) -> Unit,
+    onOpenEmailVerification: (username: String, email: String) -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -180,6 +295,7 @@ fun SoundingTangkiApp(
     var showExportJpgSheet by remember { mutableStateOf(false) }
     var showExportDraftJpgSheet by remember { mutableStateOf(false) }
     var showLicenseActivationSheet by remember { mutableStateOf(false) }
+    var showSwitchUsernameSheet by remember { mutableStateOf(false) }
     var pendingJpgBytes by remember { mutableStateOf<ByteArray?>(null) }
 
     DisposableEffect(lifecycleOwner) {
@@ -194,12 +310,59 @@ fun SoundingTangkiApp(
 
     fun showFeedback(message: String) {
         scope.launch {
-            snackbarHostState.currentSnackbarData?.dismiss()
-            snackbarHostState.showSnackbar(
-                message = message,
-                duration = SnackbarDuration.Short
-            )
+            runCatching {
+                snackbarHostState.currentSnackbarData?.dismiss()
+                snackbarHostState.showSnackbar(
+                    message = message,
+                    duration = SnackbarDuration.Short
+                )
+            }
         }
+    }
+
+    // Surface any Firebase / Firestore / local persistence error on screen cleanly instead of force-closing
+    LaunchedEffect(uiState.cloudSyncError) {
+        val err = uiState.cloudSyncError
+        if (!err.isNullOrBlank()) {
+            runCatching {
+                snackbarHostState.currentSnackbarData?.dismiss()
+                snackbarHostState.showSnackbar(
+                    message = err,
+                    duration = SnackbarDuration.Long
+                )
+            }
+            viewModel.clearCloudError()
+        }
+    }
+
+    // Surface feedback after a manual "Cek Update" action from About screen
+    LaunchedEffect(updateUiState.manualCheckSequence) {
+        if (updateUiState.manualCheckSequence <= 0) return@LaunchedEffect
+        val feedbackMessage = when (updateUiState.status) {
+            AppUpdateStatus.UP_TO_DATE -> context.getString(
+                R.string.msg_update_up_to_date,
+                updateUiState.latestTagSeen.ifBlank { updateUiState.currentVersionLabel }
+            )
+            AppUpdateStatus.UPDATE_AVAILABLE -> context.getString(
+                R.string.msg_update_found,
+                updateUiState.availableRelease?.displayVersion ?: "-"
+            )
+            AppUpdateStatus.OFFLINE_OR_TIMEOUT -> context.getString(R.string.about_update_status_offline)
+            AppUpdateStatus.RATE_LIMITED -> context.getString(R.string.about_update_status_rate_limited)
+            AppUpdateStatus.NO_RELEASES_YET -> context.getString(R.string.about_update_status_no_release)
+            AppUpdateStatus.ERROR -> context.getString(R.string.about_update_status_error)
+            else -> null
+        }
+        if (!feedbackMessage.isNullOrBlank()) {
+            showFeedback(feedbackMessage)
+        }
+    }
+
+    fun openEmailCloudVerification() {
+        onOpenEmailVerification(
+            uiState.activeAccountName,
+            uiState.activeOperatorEmail.ifBlank { uiState.currentUserEmail }
+        )
     }
 
     val csvDocumentLauncher = rememberLauncherForActivityResult(
@@ -271,9 +434,13 @@ fun SoundingTangkiApp(
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
             topBar = {
                 AppBrandHeader(
+                    activeAccountName = uiState.activeAccountName,
                     isDarkTheme = uiState.isDarkTheme,
+                    isCloudConnected = uiState.isCloudConnected,
                     isOnlineRealtime = uiState.isOnlineRealtime,
                     isAboutSelected = uiState.selectedTab == AppTab.ABOUT,
+                    onOpenSwitchAccount = { showSwitchUsernameSheet = true },
+                    onConnectCloud = ::openEmailCloudVerification,
                     onToggleTheme = viewModel::toggleTheme,
                     onOpenAbout = {
                         viewModel.selectTab(
@@ -305,17 +472,32 @@ fun SoundingTangkiApp(
                     )
                 }
 
-                Box(
+                Column(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
                 ) {
-                    if (!uiState.isLoaded) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.align(Alignment.Center),
-                            color = SoundingThemeExtras.colors.leafAccent
+                    val bannerRelease = updateUiState.availableRelease
+                    if (updateUiState.showUpdateBanner && bannerRelease != null) {
+                        UpdateAvailableBanner(
+                            currentVersionLabel = updateUiState.currentVersionLabel,
+                            release = bannerRelease,
+                            onOpenDetails = onOpenUpdateDialog,
+                            onDismiss = onDismissUpdateBanner
                         )
-                    } else {
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    ) {
+                        if (!uiState.isLoaded) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.align(Alignment.Center),
+                                color = SoundingThemeExtras.colors.leafAccent
+                            )
+                        } else {
                         when (uiState.selectedTab) {
                             AppTab.CALCULATOR -> CalculatorScreen(
                                 uiState = uiState,
@@ -338,19 +520,37 @@ fun SoundingTangkiApp(
                                 },
                                 onCopyWhatsApp = { calc ->
                                     val summary = SoundingFormatters.formatWhatsAppSummary(calc)
-                                    copyToClipboard(context, summary)
-                                    showFeedback(context.getString(R.string.msg_copied_wa))
+                                    val copied = copyToClipboard(context, summary)
+                                    showFeedback(
+                                        context.getString(
+                                            if (copied) R.string.msg_copied_wa else R.string.msg_clipboard_failed
+                                        )
+                                    )
                                 },
                                 onShareWhatsApp = { calc ->
                                     val summary = SoundingFormatters.formatWhatsAppSummary(calc)
-                                    sharePlainText(context, summary)
+                                    if (!sharePlainText(context, summary)) {
+                                        showFeedback(context.getString(R.string.msg_share_failed))
+                                    }
+                                }
+                            )
+
+                            AppTab.BLENDING -> BlendingScreen(
+                                activeAccountName = uiState.activeAccountName,
+                                onCopyBlendingSummary = { summary ->
+                                    val copied = copyToClipboard(context, summary)
+                                    showFeedback(
+                                        context.getString(
+                                            if (copied) R.string.msg_blending_copied else R.string.msg_clipboard_failed
+                                        )
+                                    )
                                 }
                             )
 
                             AppTab.HISTORY -> HistoryScreen(
                                 uiState = uiState,
                                 onSelectDateFilter = viewModel::setHistoryDateFilter,
-                                onSelectShiftFilter = viewModel::setHistoryShiftFilter,
+                                onSelectAccountFilter = viewModel::setHistoryAccountFilter,
                                 onOpenExportJpg = {
                                     if (uiState.logs.isEmpty()) {
                                         showFeedback(context.getString(R.string.msg_no_data_export))
@@ -362,13 +562,21 @@ fun SoundingTangkiApp(
                                     if (uiState.logs.isEmpty()) {
                                         showFeedback(context.getString(R.string.msg_no_data_export))
                                     } else {
-                                        csvDocumentLauncher.launch("rekap_sounding_tangki.csv")
+                                        runCatching {
+                                            csvDocumentLauncher.launch("rekap_sounding_tangki.csv")
+                                        }.onFailure {
+                                            showFeedback(context.getString(R.string.msg_file_picker_failed))
+                                        }
                                     }
                                 },
                                 onCopyLogWa = { log ->
                                     val summary = SoundingFormatters.formatLogWhatsAppSummary(log)
-                                    copyToClipboard(context, summary)
-                                    showFeedback(context.getString(R.string.msg_copied_wa))
+                                    val copied = copyToClipboard(context, summary)
+                                    showFeedback(
+                                        context.getString(
+                                            if (copied) R.string.msg_copied_wa else R.string.msg_clipboard_failed
+                                        )
+                                    )
                                 },
                                 onDeleteRecord = { record ->
                                     viewModel.deleteHistoryRecord(record) { deleted, tankId ->
@@ -391,22 +599,23 @@ fun SoundingTangkiApp(
                                 historyLogs = uiState.historyRecords.map { it.entity },
                                 cloudShiftReports = uiState.filteredCloudShiftReports,
                                 availableDraftDates = uiState.availableDraftDates,
+                                availableDraftAccounts = uiState.availableDraftAccounts,
                                 selectedDraftDateFilter = uiState.draftFilterDateKey,
-                                selectedDraftShiftFilter = uiState.draftFilterShift,
-                                isViewingOtherShiftReport = uiState.isViewingOtherShiftReport,
+                                selectedDraftAccountFilter = uiState.draftFilterAccount,
+                                isViewingCloudReport = uiState.isViewingCloudReport,
                                 onSelectDraftDateFilter = viewModel::setDraftDateFilter,
-                                onSelectDraftShiftFilter = viewModel::setDraftShiftFilter,
+                                onSelectDraftAccountFilter = viewModel::setDraftAccountFilter,
                                 onOpenCloudShiftReport = { report ->
                                     viewModel.openCloudShiftReport(report)
                                     showFeedback(
                                         context.getString(
                                             R.string.msg_loaded_shift_report,
                                             report.dateLabel.ifBlank { report.dateKey },
-                                            report.shift
+                                            report.displayAccountName.ifBlank { "-" }
                                         )
                                     )
                                 },
-                                onReturnToActiveShift = viewModel::returnToCurrentShiftDraft,
+                                onReturnToActiveDraft = viewModel::returnToCurrentDraft,
                                 onSaveDraftToCloud = {
                                     viewModel.saveDraftToCloudNow { synced ->
                                         showFeedback(
@@ -421,7 +630,6 @@ fun SoundingTangkiApp(
                                     }
                                 },
                                 onDateChanged = viewModel::updateDraftDate,
-                                onShiftChanged = viewModel::updateDraftShift,
                                 onOperatorChanged = viewModel::updateDraftOperator,
                                 onNbChanged = viewModel::updateDraftNb,
                                 onUpdateTankRow = viewModel::updateDraftTankRow,
@@ -440,17 +648,30 @@ fun SoundingTangkiApp(
 
                             AppTab.ABOUT -> AboutScreen(
                                 licenseState = uiState.licenseState,
-                                userName = uiState.currentUserName,
-                                userEmail = uiState.currentUserEmail,
+                                activeAccountName = uiState.activeAccountName,
+                                isCloudConnected = uiState.isCloudConnected,
+                                cloudEmail = uiState.currentUserEmail.ifBlank { uiState.activeOperatorEmail },
                                 isOnlineRealtime = uiState.isOnlineRealtime,
                                 onOpenLicenseActivation = { showLicenseActivationSheet = true },
-                                onSignOut = {
+                                onOpenSwitchAccount = { showSwitchUsernameSheet = true },
+                                onConnectCloud = ::openEmailCloudVerification,
+                                onDisconnectCloud = {
                                     scope.launch {
-                                        performFirebaseSignOut(context)
+                                        runCatching {
+                                            EmailVerificationAuthHelper.performFirebaseSignOut(context)
+                                        }
+                                        showFeedback(context.getString(R.string.msg_cloud_disconnected))
                                     }
-                                }
+                                },
+                                onLogoutAccount = {
+                                    viewModel.logoutOperatorSession()
+                                },
+                                appUpdateState = updateUiState,
+                                onCheckForUpdate = onCheckForUpdate,
+                                onDownloadUpdate = onDownloadUpdate
                             )
                         }
+                    }
                     }
                 }
             }
@@ -478,7 +699,9 @@ fun SoundingTangkiApp(
                     }
                     val file = fileResult.getOrNull()
                     if (file != null) {
-                        shareJpgImage(context, file)
+                        if (!shareJpgImage(context, file)) {
+                            showFeedback(context.getString(R.string.msg_share_failed))
+                        }
                     } else {
                         showFeedback(context.getString(R.string.msg_jpg_failed))
                     }
@@ -501,7 +724,12 @@ fun SoundingTangkiApp(
                     val bytes = bytesResult.getOrNull()
                     if (bytes != null) {
                         pendingJpgBytes = bytes
-                        jpgDocumentLauncher.launch("laporan_sounding_harian.jpg")
+                        runCatching {
+                            jpgDocumentLauncher.launch("laporan_sounding_harian.jpg")
+                        }.onFailure {
+                            pendingJpgBytes = null
+                            showFeedback(context.getString(R.string.msg_file_picker_failed))
+                        }
                     } else {
                         showFeedback(context.getString(R.string.msg_jpg_failed))
                     }
@@ -528,7 +756,9 @@ fun SoundingTangkiApp(
                     }
                     val file = fileResult.getOrNull()
                     if (file != null) {
-                        shareJpgImage(context, file)
+                        if (!shareJpgImage(context, file)) {
+                            showFeedback(context.getString(R.string.msg_share_failed))
+                        }
                     } else {
                         showFeedback(context.getString(R.string.msg_draft_jpg_failed))
                     }
@@ -549,7 +779,12 @@ fun SoundingTangkiApp(
                     val bytes = bytesResult.getOrNull()
                     if (bytes != null) {
                         pendingJpgBytes = bytes
-                        jpgDocumentLauncher.launch("draft_laporan_shift.jpg")
+                        runCatching {
+                            jpgDocumentLauncher.launch("draft_laporan_shift.jpg")
+                        }.onFailure {
+                            pendingJpgBytes = null
+                            showFeedback(context.getString(R.string.msg_file_picker_failed))
+                        }
                     } else {
                         showFeedback(context.getString(R.string.msg_draft_jpg_failed))
                     }
@@ -569,76 +804,157 @@ fun SoundingTangkiApp(
             onDismiss = { showLicenseActivationSheet = false }
         )
     }
+
+    if (showSwitchUsernameSheet) {
+        SwitchUsernameBottomSheet(
+            currentAccountName = uiState.activeAccountName,
+            verifiedAccounts = uiState.verifiedAccounts,
+            onAuthenticateSwitch = { rawUsername, rawPassword ->
+                val result = viewModel.authenticateWithUsernameAndPassword(rawUsername, rawPassword)
+                if (result is UsernamePasswordLoginResult.Success) {
+                    showSwitchUsernameSheet = false
+                    showFeedback(
+                        context.getString(R.string.msg_username_switched, result.accountName)
+                    )
+                }
+                result
+            },
+            onRequestCreateVerifiedAccount = { rawUsername ->
+                showSwitchUsernameSheet = false
+                onOpenEmailVerification(rawUsername, "")
+            },
+            onDismiss = { showSwitchUsernameSheet = false }
+        )
+    }
 }
 
 @Composable
 private fun AppBrandHeader(
+    activeAccountName: String,
     isDarkTheme: Boolean,
+    isCloudConnected: Boolean,
     isOnlineRealtime: Boolean,
     isAboutSelected: Boolean,
+    onOpenSwitchAccount: () -> Unit,
+    onConnectCloud: () -> Unit,
     onToggleTheme: () -> Unit,
     onOpenAbout: () -> Unit
 ) {
     val extras = SoundingThemeExtras.colors
     val headerBrush = Brush.horizontalGradient(
-        colors = listOf(extras.headerGradientStart, extras.headerGradientEnd)
+        colors = listOf(
+            extras.headerGradientStart,
+            extras.headerGradientMid,
+            extras.headerGradientEnd
+        )
     )
     val toggleCd = stringResource(
         if (isDarkTheme) R.string.cd_switch_to_light else R.string.cd_switch_to_dark
     )
     val aboutCd = stringResource(R.string.cd_open_about)
+    val switchAccountCd = stringResource(R.string.cd_switch_username)
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = Color.Transparent,
         shadowElevation = 4.dp
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(headerBrush)
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = stringResource(R.string.app_header_title),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 17.sp,
-                        lineHeight = 20.sp
-                    ),
-                    color = Color.White,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.testTag("header_title")
-                )
-                Text(
-                    text = stringResource(R.string.app_header_subtitle),
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp
-                    ),
-                    color = Color.White.copy(alpha = 0.95f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.testTag("header_subtitle")
-                )
-                Text(
-                    text = stringResource(R.string.app_header_credit),
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.SemiBold
-                    ),
-                    color = Color.White.copy(alpha = 0.86f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.testTag("header_credit")
-                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.app_header_title),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 17.sp,
+                            lineHeight = 20.sp
+                        ),
+                        color = Color.White,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag("header_title")
+                    )
+                    Text(
+                        text = stringResource(R.string.app_header_subtitle),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.6.sp
+                        ),
+                        color = extras.headerSubtitleAccent,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag("header_subtitle")
+                    )
+                if (activeAccountName.isNotBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = Color.White.copy(alpha = 0.18f),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.34f)),
+                        modifier = Modifier
+                            .padding(top = 2.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .clickable(
+                                role = Role.Button,
+                                onClick = onOpenSwitchAccount
+                            )
+                            .semantics { contentDescription = switchAccountCd }
+                            .testTag("header_switch_account_chip")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = activeAccountName,
+                                style = MonoTypography.badge.copy(
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Icon(
+                                imageVector = Icons.Default.SwapHoriz,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.9f),
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = stringResource(R.string.app_header_credit),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = Color.White.copy(alpha = 0.86f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag("header_credit")
+                    )
+                }
             }
 
             Column(
@@ -646,72 +962,56 @@ private fun AppBrandHeader(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // Top Row: Dynamic ONLINE • REALTIME / OFFLINE • LOKAL badge + Company Logo
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                // Top Row: Dynamic ONLINE • REALTIME / OFFLINE • LOKAL pill badge (clean, without external leaf icon)
+                val statusBg = if (isOnlineRealtime) {
+                    extras.leafAccent.copy(alpha = 0.36f)
+                } else {
+                    Color(0xFFB45309).copy(alpha = 0.42f)
+                }
+                val statusBorder = if (isOnlineRealtime) {
+                    extras.limeBright.copy(alpha = 0.78f)
+                } else {
+                    Color(0xFFFDE68A).copy(alpha = 0.72f)
+                }
+                val dotColor = if (isOnlineRealtime) extras.onlineIndicatorDot else Color(0xFFFBBF24)
+
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = statusBg,
+                    border = BorderStroke(1.dp, statusBorder),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .clickable(
+                            enabled = !isCloudConnected,
+                            role = Role.Button,
+                            onClick = onConnectCloud
+                        )
+                        .testTag("header_connection_badge")
                 ) {
-                    val statusBg = if (isOnlineRealtime) {
-                        Color(0xFF15803D).copy(alpha = 0.38f)
-                    } else {
-                        Color(0xFFB45309).copy(alpha = 0.42f)
-                    }
-                    val statusBorder = if (isOnlineRealtime) {
-                        Color(0xFF86EFAC).copy(alpha = 0.72f)
-                    } else {
-                        Color(0xFFFDE68A).copy(alpha = 0.72f)
-                    }
-                    val dotColor = if (isOnlineRealtime) Color(0xFF4ADE80) else Color(0xFFFBBF24)
-
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = statusBg,
-                        border = BorderStroke(1.dp, statusBorder),
-                        modifier = Modifier.testTag("header_connection_badge")
+                    Row(
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(7.dp)
-                                    .clip(CircleShape)
-                                    .background(dotColor)
-                            )
-                            Icon(
-                                imageVector = if (isOnlineRealtime) Icons.Default.CloudDone else Icons.Default.CloudOff,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(12.dp)
-                            )
-                            Text(
-                                text = stringResource(
-                                    if (isOnlineRealtime) R.string.status_online_realtime else R.string.status_offline_local
-                                ),
-                                style = MonoTypography.badge.copy(fontSize = 9.5.sp),
-                                color = Color.White,
-                                maxLines = 1
-                            )
-                        }
-                    }
-
-                    Surface(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .testTag("header_company_logo"),
-                        shape = RoundedCornerShape(10.dp),
-                        color = Color.White,
-                        shadowElevation = 2.dp
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_company_logo),
-                            contentDescription = stringResource(R.string.cd_company_logo),
-                            contentScale = ContentScale.Fit,
+                        Box(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(5.dp)
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(dotColor)
+                        )
+                        Icon(
+                            imageVector = if (isOnlineRealtime) Icons.Default.CloudDone else Icons.Default.CloudOff,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = stringResource(
+                                if (isOnlineRealtime) R.string.status_online_realtime else R.string.status_offline_local
+                            ),
+                            style = MonoTypography.badge.copy(fontSize = 9.5.sp),
+                            color = Color.White,
+                            maxLines = 1
                         )
                     }
                 }
@@ -800,6 +1100,21 @@ private fun AppBrandHeader(
                     }
                 }
             }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.5.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                extras.leafAccent.copy(alpha = 0.75f),
+                                extras.limeBright.copy(alpha = 0.45f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
         }
     }
 }
@@ -812,9 +1127,9 @@ private fun SoundingBottomNav(
 ) {
     val extras = SoundingThemeExtras.colors
     val navColors = NavigationBarItemDefaults.colors(
-        selectedIconColor = extras.onLeafContainer,
-        selectedTextColor = extras.leafAccentReadable,
-        indicatorColor = extras.leafContainer,
+        selectedIconColor = extras.navSelectedIcon,
+        selectedTextColor = extras.navSelectedText,
+        indicatorColor = extras.navIndicator,
         unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
         unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -837,8 +1152,38 @@ private fun SoundingBottomNav(
                     contentDescription = stringResource(R.string.tab_calculator)
                 )
             },
-            label = { Text(stringResource(R.string.tab_calculator)) },
+            label = {
+                Text(
+                    text = stringResource(R.string.tab_calculator),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            },
             modifier = Modifier.testTag("nav_tab_calculator")
+        )
+
+        NavigationBarItem(
+            selected = selectedTab == AppTab.BLENDING,
+            onClick = { onSelectTab(AppTab.BLENDING) },
+            colors = navColors,
+            icon = {
+                Icon(
+                    imageVector = if (selectedTab == AppTab.BLENDING) {
+                        Icons.Filled.Science
+                    } else {
+                        Icons.Outlined.Science
+                    },
+                    contentDescription = stringResource(R.string.tab_blending_full)
+                )
+            },
+            label = {
+                Text(
+                    text = stringResource(R.string.tab_blending),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            },
+            modifier = Modifier.testTag("nav_tab_blending")
         )
 
         NavigationBarItem(
@@ -850,8 +1195,8 @@ private fun SoundingBottomNav(
                     badge = {
                         if (logCount > 0) {
                             Badge(
-                                containerColor = extras.leafAccent,
-                                contentColor = Color.White
+                                containerColor = extras.limeAccent,
+                                contentColor = extras.onLimeButton
                             ) {
                                 Text(text = logCount.toString())
                             }
@@ -870,11 +1215,9 @@ private fun SoundingBottomNav(
             },
             label = {
                 Text(
-                    text = if (logCount > 0) {
-                        stringResource(R.string.tab_history_with_count, logCount)
-                    } else {
-                        stringResource(R.string.tab_history)
-                    }
+                    text = stringResource(R.string.tab_history),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             },
             modifier = Modifier.testTag("nav_tab_history")
@@ -894,7 +1237,13 @@ private fun SoundingBottomNav(
                     contentDescription = stringResource(R.string.tab_draft_full)
                 )
             },
-            label = { Text(stringResource(R.string.tab_draft)) },
+            label = {
+                Text(
+                    text = stringResource(R.string.tab_draft),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            },
             modifier = Modifier.testTag("nav_tab_draft")
         )
 
@@ -912,7 +1261,13 @@ private fun SoundingBottomNav(
                     contentDescription = stringResource(R.string.tab_about)
                 )
             },
-            label = { Text(stringResource(R.string.tab_about)) },
+            label = {
+                Text(
+                    text = stringResource(R.string.tab_about),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            },
             modifier = Modifier.testTag("nav_tab_about")
         )
     }
@@ -926,9 +1281,9 @@ private fun SoundingNavRail(
 ) {
     val extras = SoundingThemeExtras.colors
     val railColors = NavigationRailItemDefaults.colors(
-        selectedIconColor = extras.onLeafContainer,
-        selectedTextColor = extras.leafAccentReadable,
-        indicatorColor = extras.leafContainer,
+        selectedIconColor = extras.navSelectedIcon,
+        selectedTextColor = extras.navSelectedText,
+        indicatorColor = extras.navIndicator,
         unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
         unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -955,6 +1310,24 @@ private fun SoundingNavRail(
             },
             label = { Text(stringResource(R.string.tab_calculator)) },
             modifier = Modifier.testTag("nav_rail_calculator")
+        )
+
+        NavigationRailItem(
+            selected = selectedTab == AppTab.BLENDING,
+            onClick = { onSelectTab(AppTab.BLENDING) },
+            colors = railColors,
+            icon = {
+                Icon(
+                    imageVector = if (selectedTab == AppTab.BLENDING) {
+                        Icons.Filled.Science
+                    } else {
+                        Icons.Outlined.Science
+                    },
+                    contentDescription = stringResource(R.string.tab_blending_full)
+                )
+            },
+            label = { Text(stringResource(R.string.tab_blending)) },
+            modifier = Modifier.testTag("nav_rail_blending")
         )
 
         NavigationRailItem(
@@ -1026,30 +1399,40 @@ private fun SoundingNavRail(
     }
 }
 
-private fun copyToClipboard(context: Context, text: String) {
-    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-    clipboard?.setPrimaryClip(ClipData.newPlainText("Sounding Tangki", text))
+private fun copyToClipboard(context: Context, text: String): Boolean {
+    return runCatching {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            ?: return false
+        clipboard.setPrimaryClip(ClipData.newPlainText("Sounding Tangki", text))
+        true
+    }.getOrDefault(false)
 }
 
-private fun sharePlainText(context: Context, text: String) {
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, text)
-    }
-    context.startActivity(Intent.createChooser(intent, null))
+private fun sharePlainText(context: Context, text: String): Boolean {
+    return runCatching {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        context.startActivity(Intent.createChooser(intent, null))
+        true
+    }.getOrDefault(false)
 }
 
-private fun shareJpgImage(context: Context, imageFile: java.io.File) {
-    val uri = FileProvider.getUriForFile(
-        context,
-        "${context.packageName}.fileprovider",
-        imageFile
-    )
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "image/jpeg"
-        putExtra(Intent.EXTRA_STREAM, uri)
-        clipData = ClipData.newRawUri("Laporan Sounding Harian", uri)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    context.startActivity(Intent.createChooser(intent, null))
+private fun shareJpgImage(context: Context, imageFile: java.io.File): Boolean {
+    return runCatching {
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            imageFile
+        )
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "image/jpeg"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            clipData = ClipData.newRawUri("Laporan Sounding Harian", uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, null))
+        true
+    }.getOrDefault(false)
 }

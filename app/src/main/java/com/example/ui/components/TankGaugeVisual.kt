@@ -104,10 +104,10 @@ fun VerticalCylinderTankDiagram(
             .fillMaxWidth()
             .testTag("vertical_tank_diagram_card")
             .semantics { contentDescription = accessibilitySummary },
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
-        border = BorderStroke(1.dp, extras.cardBorder),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = extras.glassCardSurface),
+        border = BorderStroke(1.dp, extras.glassBorder),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (extras.isDark) 0.dp else 1.dp)
     ) {
         Column(
             modifier = Modifier

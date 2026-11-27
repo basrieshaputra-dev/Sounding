@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -111,7 +112,8 @@ fun TankShiftEditBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        containerColor = extras.glassSheetSurface
     ) {
         Column(
             modifier = Modifier
@@ -592,7 +594,8 @@ fun ExportDraftJpgBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        containerColor = extras.glassSheetSurface
     ) {
         Column(
             modifier = Modifier
@@ -637,7 +640,7 @@ fun ExportDraftJpgBottomSheet(
                         .heightIn(min = 52.dp)
                         .testTag("confirm_share_draft_jpg"),
                     shape = MaterialTheme.shapes.medium,
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandDeepTeal, contentColor = Color.White)
+                    colors = ButtonDefaults.buttonColors(containerColor = extras.executiveActionSurface, contentColor = Color.White)
                 ) {
                     Icon(imageVector = Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))

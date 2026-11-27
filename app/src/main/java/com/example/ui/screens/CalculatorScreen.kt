@@ -6,8 +6,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -21,6 +23,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -56,9 +60,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -72,6 +80,7 @@ import com.example.ui.components.ProductPickerBottomSheet
 import com.example.ui.components.TankPickerBottomSheet
 import com.example.ui.components.VerticalCylinderTankDiagram
 import com.example.ui.theme.MonoTypography
+import com.example.ui.theme.SaveGradientGreen
 import com.example.ui.theme.SoundingThemeExtras
 import com.example.util.SoundingFormatters
 
@@ -111,13 +120,13 @@ fun CalculatorScreen(
                 .widthIn(max = 640.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Input Parameters Card
+            // Input Parameters Card (Neo-Industrial 20dp Frosted Glass)
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.dp, extras.cardBorder),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = extras.glassCardSurface),
+                border = BorderStroke(1.dp, extras.glassBorder),
+                elevation = CardDefaults.cardElevation(defaultElevation = if (extras.isDark) 0.dp else 1.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -547,6 +556,10 @@ fun CalculatorScreen(
 
                         CalculationResultCard(calc = calc)
 
+                        val savePillShape = RoundedCornerShape(999.dp)
+                        val saveGradientBrush = Brush.horizontalGradient(
+                            colors = listOf(SaveGradientGreen, extras.limeAccent, extras.primaryCtaEnd)
+                        )
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -560,10 +573,18 @@ fun CalculatorScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .heightIn(min = 52.dp)
+                                    .clip(savePillShape)
+                                    .background(saveGradientBrush, savePillShape)
                                     .testTag("save_history_button"),
-                                shape = MaterialTheme.shapes.medium,
+                                shape = savePillShape,
+                                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
+                                    containerColor = Color.Transparent,
+                                    contentColor = extras.onLimeButton
+                                ),
+                                elevation = ButtonDefaults.buttonElevation(
+                                    defaultElevation = 0.dp,
+                                    pressedElevation = 0.dp
                                 )
                             ) {
                                 Icon(
@@ -574,7 +595,9 @@ fun CalculatorScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = stringResource(R.string.action_save_history),
-                                    style = MaterialTheme.typography.labelLarge,
+                                    style = MaterialTheme.typography.labelLarge.copy(
+                                        fontWeight = FontWeight.ExtraBold
+                                    ),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -585,9 +608,10 @@ fun CalculatorScreen(
                                 modifier = Modifier
                                     .heightIn(min = 52.dp)
                                     .testTag("copy_wa_button"),
-                                shape = MaterialTheme.shapes.medium,
+                                shape = savePillShape,
                                 border = BorderStroke(1.2.dp, extras.interactiveAccent),
                                 colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = extras.glassCardSurface,
                                     contentColor = extras.interactiveAccent
                                 ),
                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
@@ -606,6 +630,7 @@ fun CalculatorScreen(
 
                             FilledTonalIconButton(
                                 onClick = { onShareWhatsApp(calc) },
+                                shape = CircleShape,
                                 modifier = Modifier
                                     .size(52.dp)
                                     .testTag("share_wa_button")
@@ -638,7 +663,8 @@ fun CalculatorScreen(
             tanks = uiState.tanks,
             selectedTankId = uiState.selectedTank?.id,
             onSelect = onSelectTank,
-            onDismiss = { showTankPicker = false }
+            onDismiss = { showTankPicker = false },
+            currentTankStocks = uiState.currentTankStocks
         )
     }
 
@@ -662,7 +688,7 @@ private fun CalculationResultCard(calc: SoundingCalculation) {
         modifier = Modifier
             .fillMaxWidth()
             .testTag("result_card"),
-        shape = MaterialTheme.shapes.large,
+        shape = RoundedCornerShape(20.dp),
         color = extras.resultSurface,
         border = BorderStroke(1.2.dp, extras.resultBorder)
     ) {
@@ -876,9 +902,9 @@ private fun EmptyCalculationCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("empty_calculation_hint"),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, extras.cardBorder)
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = extras.glassCardSurface),
+        border = BorderStroke(1.dp, extras.glassBorder)
     ) {
         Column(
             modifier = Modifier
