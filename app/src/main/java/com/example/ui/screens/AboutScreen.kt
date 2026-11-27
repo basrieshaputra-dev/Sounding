@@ -7,6 +7,7 @@ import android.os.Build
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -71,8 +72,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -84,7 +87,6 @@ import com.example.data.local.LicenseManager
 import com.example.data.local.LicenseState
 import com.example.ui.AppUpdateUiState
 import com.example.ui.components.AboutAppUpdateCard
-import com.example.ui.theme.BrandDeepTeal
 import com.example.ui.theme.MonoTypography
 import com.example.ui.theme.SoundingThemeExtras
 import com.example.util.GitHubReleaseInfo
@@ -92,6 +94,7 @@ import com.example.util.SoundingFormatters
 
 private const val ABOUT_LOG_TAG = "AboutScreen"
 private val AboutCardShape = RoundedCornerShape(20.dp)
+private val AboutCtaShape = RoundedCornerShape(16.dp)
 
 @Immutable
 private data class SafeAboutLicenseSnapshot(
@@ -467,7 +470,7 @@ private fun AboutAccountCard(
         shape = AboutCardShape,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, extras.cardBorder),
-        tonalElevation = 1.dp
+        shadowElevation = if (extras.isDark) 0.dp else 2.dp
     ) {
         Column(
             modifier = Modifier
@@ -484,9 +487,8 @@ private fun AboutAccountCard(
             // Active Account panel
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-                color = extras.leafContainer,
-                border = BorderStroke(1.dp, extras.leafAccent.copy(alpha = 0.40f))
+                shape = AboutCtaShape,
+                color = extras.sageContainer
             ) {
                 Column(
                     modifier = Modifier
@@ -497,7 +499,7 @@ private fun AboutAccountCard(
                     Text(
                         text = stringResource(R.string.label_active_username),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = extras.onSageContainer.copy(alpha = 0.78f)
                     )
                     Text(
                         text = safeAccountDisplay,
@@ -505,7 +507,7 @@ private fun AboutAccountCard(
                             fontSize = 17.sp,
                             fontWeight = FontWeight.ExtraBold
                         ),
-                        color = extras.onLeafContainer,
+                        color = extras.onSageContainer,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.testTag("about_active_account_name")
@@ -517,12 +519,12 @@ private fun AboutAccountCard(
                 onClick = onOpenSwitchAccount,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 48.dp)
+                    .heightIn(min = 50.dp)
                     .testTag("about_switch_account_button"),
-                shape = MaterialTheme.shapes.medium,
+                shape = AboutCtaShape,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = extras.executiveActionSurface,
-                    contentColor = Color.White
+                    containerColor = extras.sagePrimary,
+                    contentColor = extras.onSagePrimary
                 )
             ) {
                 Icon(
@@ -537,13 +539,13 @@ private fun AboutAccountCard(
                 )
             }
 
-            HorizontalDivider(color = extras.cardBorder)
+            HorizontalDivider(color = extras.cardBorder.copy(alpha = 0.7f))
 
             // Cloud Sync status block
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-                color = extras.elevatedSurface,
+                shape = AboutCtaShape,
+                color = extras.innerContainer,
                 border = BorderStroke(1.dp, extras.cardBorder)
             ) {
                 Column(
@@ -587,9 +589,9 @@ private fun AboutAccountCard(
                     onClick = onRequestSignOut,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 48.dp)
+                        .heightIn(min = 50.dp)
                         .testTag("about_sign_out_button"),
-                    shape = MaterialTheme.shapes.medium,
+                    shape = AboutCtaShape,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.55f)),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
@@ -611,12 +613,12 @@ private fun AboutAccountCard(
                     onClick = onConnectCloud,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 48.dp)
+                        .heightIn(min = 50.dp)
                         .testTag("about_connect_cloud_button"),
-                    shape = MaterialTheme.shapes.medium,
-                    border = BorderStroke(1.dp, extras.interactiveAccent),
+                    shape = AboutCtaShape,
+                    border = BorderStroke(1.dp, extras.sagePrimary.copy(alpha = 0.6f)),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = extras.interactiveAccent
+                        contentColor = extras.sagePrimary
                     )
                 ) {
                     Icon(
@@ -637,10 +639,10 @@ private fun AboutAccountCard(
                     onClick = onRequestLogout,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 48.dp)
+                        .heightIn(min = 50.dp)
                         .testTag("about_logout_button"),
-                    shape = MaterialTheme.shapes.medium,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.7f)),
+                    shape = AboutCtaShape,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.65f)),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )
@@ -702,6 +704,30 @@ private fun AboutHeroIdentityCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // Company Logo Badge (proportional in Warm Off-White #FFFDF8 container)
+            Surface(
+                modifier = Modifier
+                    .size(64.dp)
+                    .testTag("about_company_logo_badge"),
+                shape = RoundedCornerShape(18.dp),
+                color = extras.logoBadgeSurface,
+                shadowElevation = 3.dp
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(11.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_company_logo),
+                        contentDescription = stringResource(R.string.cd_company_logo),
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -710,8 +736,8 @@ private fun AboutHeroIdentityCard(
                     text = stringResource(R.string.app_header_title),
                     style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 21.sp,
-                        lineHeight = 26.sp
+                        fontSize = 22.sp,
+                        lineHeight = 27.sp
                     ),
                     color = Color.White,
                     textAlign = TextAlign.Center,
@@ -807,11 +833,8 @@ private fun AboutLicenseStatusCard(
             .testTag("about_license_card"),
         shape = AboutCardShape,
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(
-            width = 1.dp,
-            color = if (safeLicense.isActivated) extras.leafAccent.copy(alpha = 0.45f) else extras.cardBorder
-        ),
-        tonalElevation = 1.dp
+        border = BorderStroke(1.dp, extras.cardBorder),
+        shadowElevation = if (extras.isDark) 0.dp else 2.dp
     ) {
         Column(
             modifier = Modifier
@@ -875,9 +898,8 @@ private fun AboutLicenseStatusCard(
             } else {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
-                    color = extras.elevatedSurface,
-                    border = BorderStroke(1.dp, extras.cardBorder)
+                    shape = AboutCtaShape,
+                    color = extras.innerContainer
                 ) {
                     Column(
                         modifier = Modifier
@@ -899,7 +921,7 @@ private fun AboutLicenseStatusCard(
                                 .fillMaxWidth()
                                 .height(7.dp)
                                 .clip(RoundedCornerShape(999.dp)),
-                            color = extras.leafAccent,
+                            color = extras.sagePrimary,
                             trackColor = extras.cardBorder
                         )
                         LicenseKeyValueRow(
@@ -922,12 +944,12 @@ private fun AboutLicenseStatusCard(
                     onClick = onOpenLicenseActivation,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 48.dp)
+                        .heightIn(min = 50.dp)
                         .testTag("about_open_activation_button"),
-                    shape = MaterialTheme.shapes.medium,
+                    shape = AboutCtaShape,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = extras.executiveActionSurface,
-                        contentColor = Color.White
+                        containerColor = extras.sagePrimary,
+                        contentColor = extras.onSagePrimary
                     )
                 ) {
                     Icon(
@@ -946,8 +968,8 @@ private fun AboutLicenseStatusCard(
             // Device ID block with safe Copy button
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-                color = extras.elevatedSurface,
+                shape = AboutCtaShape,
+                color = extras.innerContainer,
                 border = BorderStroke(1.dp, extras.cardBorder)
             ) {
                 Row(
@@ -1047,7 +1069,7 @@ private fun AboutFunctionSummaryCard() {
         shape = AboutCardShape,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, extras.cardBorder),
-        tonalElevation = 1.dp
+        shadowElevation = if (extras.isDark) 0.dp else 2.dp
     ) {
         Column(
             modifier = Modifier
@@ -1115,8 +1137,8 @@ private fun FeatureMiniTile(
     val extras = SoundingThemeExtras.colors
     Surface(
         modifier = modifier,
-        shape = MaterialTheme.shapes.medium,
-        color = extras.elevatedSurface,
+        shape = AboutCtaShape,
+        color = extras.innerContainer,
         border = BorderStroke(1.dp, extras.cardBorder)
     ) {
         Column(
@@ -1170,7 +1192,7 @@ private fun AboutNarrativeCard() {
         shape = AboutCardShape,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, extras.cardBorder),
-        tonalElevation = 1.dp
+        shadowElevation = if (extras.isDark) 0.dp else 2.dp
     ) {
         Column(
             modifier = Modifier
@@ -1273,7 +1295,7 @@ private fun AboutDeveloperCard(
         shape = AboutCardShape,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, extras.cardBorder),
-        tonalElevation = 1.dp
+        shadowElevation = if (extras.isDark) 0.dp else 2.dp
     ) {
         Column(
             modifier = Modifier
@@ -1289,8 +1311,8 @@ private fun AboutDeveloperCard(
 
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-                color = extras.elevatedSurface,
+                shape = AboutCtaShape,
+                color = extras.innerContainer,
                 border = BorderStroke(1.dp, extras.cardBorder)
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {

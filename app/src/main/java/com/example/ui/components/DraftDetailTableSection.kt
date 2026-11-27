@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -26,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -39,8 +39,6 @@ import com.example.data.model.ShiftDraftEngine
 import com.example.data.model.SoundingPointDraft
 import com.example.data.model.TankGroup
 import com.example.data.model.TankShiftDraftRow
-import com.example.ui.theme.BrandDeepTeal
-import com.example.ui.theme.BrandLeafGreen
 import com.example.ui.theme.MonoTypography
 import com.example.ui.theme.SoundingThemeExtras
 import com.example.util.SoundingFormatters
@@ -73,45 +71,54 @@ fun DraftDetailTableSection(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Group Filter Chips
-        Row(
+        // Segmented Group Filter Track (Sage & Warm Sand)
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            shape = RoundedCornerShape(16.dp),
+            color = extras.innerContainer
         ) {
-            listOf(
-                DetailGroupFilter.ALL to stringResource(R.string.draft_group_all),
-                DetailGroupFilter.PREBLEND to stringResource(R.string.draft_group_preblend),
-                DetailGroupFilter.TOWERTANK to stringResource(R.string.draft_group_towertank)
-            ).forEach { (filter, label) ->
-                val selected = groupFilter == filter
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 44.dp)
-                        .clickable { groupFilter = filter }
-                        .testTag("draft_filter_${filter.name.lowercase()}"),
-                    shape = RoundedCornerShape(10.dp),
-                    color = if (selected) extras.leafContainer else extras.elevatedSurface,
-                    border = BorderStroke(
-                        width = if (selected) 1.5.dp else 1.dp,
-                        color = if (selected) extras.leafAccent else extras.cardBorder
-                    )
-                ) {
-                    Box(
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                listOf(
+                    DetailGroupFilter.ALL to stringResource(R.string.draft_group_all),
+                    DetailGroupFilter.PREBLEND to stringResource(R.string.draft_group_preblend),
+                    DetailGroupFilter.TOWERTANK to stringResource(R.string.draft_group_towertank)
+                ).forEach { (filter, label) ->
+                    val selected = groupFilter == filter
+                    Surface(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 6.dp, vertical = 10.dp),
-                        contentAlignment = Alignment.Center
+                            .weight(1f)
+                            .heightIn(min = 42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { groupFilter = filter }
+                            .testTag("draft_filter_${filter.name.lowercase()}"),
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (selected) extras.sageContainer else Color.Transparent
                     ) {
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-                            ),
-                            color = if (selected) extras.onLeafContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 6.dp, vertical = 9.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                                ),
+                                color = if (selected) {
+                                    extras.onSageContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
@@ -128,10 +135,9 @@ fun DraftDetailTableSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("draft_detail_table_card"),
-            shape = MaterialTheme.shapes.large,
+            shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, extras.cardBorder),
-            tonalElevation = 1.dp
+            shadowElevation = if (extras.isDark) 0.dp else 1.5.dp
         ) {
             val hScroll = rememberScrollState()
             Column(
@@ -139,14 +145,14 @@ fun DraftDetailTableSection(
                     .fillMaxWidth()
                     .horizontalScroll(hScroll)
             ) {
-                // Header Row
+                // Header Row (Deep Sage)
                 Row(
                     modifier = Modifier
-                        .background(BrandDeepTeal)
-                        .padding(vertical = 10.dp),
+                        .background(extras.headerGradientMid)
+                        .padding(vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TableHeaderCell("No Tank", 72.dp)
+                    TableHeaderCell("No Tank", 76.dp)
                     TableHeaderCell("Jenis Oil", 116.dp)
                     TableHeaderCell("Sond.", 66.dp)
                     TableHeaderCell("Sondingan", 86.dp)
@@ -161,7 +167,11 @@ fun DraftDetailTableSection(
                 }
 
                 filteredRows.forEachIndexed { idx, row ->
-                    val altBg = if (idx % 2 == 1) extras.elevatedSurface else MaterialTheme.colorScheme.surface
+                    val altBg = if (idx % 2 == 1) {
+                        extras.innerContainer.copy(alpha = 0.65f)
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    }
                     val deltaKg = ShiftDraftEngine.computeRowDeltaKg(row)
 
                     Column(
@@ -171,47 +181,43 @@ fun DraftDetailTableSection(
                             .testTag("draft_detail_row_${row.tankId}")
                     ) {
                         if (idx > 0) {
-                            HorizontalDivider(color = extras.cardBorder, thickness = 1.2.dp)
+                            HorizontalDivider(
+                                color = extras.cardBorder.copy(alpha = 0.7f),
+                                thickness = 1.dp
+                            )
                         }
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Col 1: Tank ID
+                            // Col 1: Tank ID in Sage Pill Badge
                             Box(
                                 modifier = Modifier
-                                    .width(72.dp)
+                                    .width(76.dp)
                                     .padding(horizontal = 6.dp, vertical = 8.dp),
                                 contentAlignment = Alignment.CenterStart
                             ) {
+                                val isPreblend = row.group == TankGroup.PREBLEND
                                 Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = if (row.group == TankGroup.PREBLEND) {
-                                        extras.resultSurface
-                                    } else {
-                                        extras.leafContainer
-                                    },
-                                    border = BorderStroke(
-                                        1.dp,
-                                        if (row.group == TankGroup.PREBLEND) extras.interactiveAccent else extras.leafAccent
-                                    )
+                                    shape = RoundedCornerShape(999.dp),
+                                    color = if (isPreblend) extras.sagePrimary else extras.sageContainer
                                 ) {
                                     Text(
                                         text = row.tankId,
-                                        style = MonoTypography.badge.copy(fontWeight = FontWeight.Bold),
-                                        color = if (row.group == TankGroup.PREBLEND) {
-                                            extras.interactiveAccent
-                                        } else {
-                                            extras.onLeafContainer
-                                        },
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                                        style = MonoTypography.badge.copy(
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.ExtraBold
+                                        ),
+                                        color = if (isPreblend) extras.onSagePrimary else extras.onSageContainer,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                     )
                                 }
                             }
 
                             // Col 2: Jenis Oil
+                            val oilText = row.oilType.ifBlank { "-" }
                             Text(
-                                text = row.oilType.ifBlank { "-" },
+                                text = oilText,
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = if (oilText == "-") extras.emptyValueInk else MaterialTheme.colorScheme.onSurface,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier
@@ -228,12 +234,12 @@ fun DraftDetailTableSection(
                                     onClick = { onEditTank(row, TankEditFocus.S_AWAL) }
                                 )
                                 HorizontalDivider(
-                                    color = extras.cardBorder.copy(alpha = 0.65f),
+                                    color = extras.cardBorder.copy(alpha = 0.5f),
                                     modifier = Modifier.width(746.dp)
                                 )
                                 DetailPointRow(
                                     statusLabel = "S. Akhir",
-                                    statusColor = BrandLeafGreen,
+                                    statusColor = extras.sagePrimary,
                                     point = row.sAkhir,
                                     onClick = { onEditTank(row, TankEditFocus.S_AKHIR) }
                                 )
@@ -251,7 +257,7 @@ fun DraftDetailTableSection(
                                     Text(
                                         text = "Δ $sign${SoundingFormatters.formatIndonesianInteger(abs(deltaKg))} kg",
                                         style = MonoTypography.badge.copy(fontWeight = FontWeight.Bold),
-                                        color = extras.interactiveAccent,
+                                        color = extras.sagePrimary,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -260,7 +266,11 @@ fun DraftDetailTableSection(
                                 Text(
                                     text = noteText,
                                     style = MaterialTheme.typography.bodySmall.copy(lineHeight = 15.sp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = if (noteText == "-") {
+                                        extras.emptyValueInk
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -299,7 +309,7 @@ private fun DetailPointRow(
 ) {
     Row(
         modifier = Modifier
-            .height(34.dp)
+            .height(36.dp)
             .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -333,13 +343,15 @@ private fun MonoCell(
     width: Dp,
     bold: Boolean = false
 ) {
+    val extras = SoundingThemeExtras.colors
+    val isEmptyValue = text.trim() == "-" || text.trim().equals("empty", ignoreCase = true)
     Text(
         text = text,
         style = MonoTypography.badge.copy(
-            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+            fontWeight = if (bold && !isEmptyValue) FontWeight.Bold else FontWeight.Normal,
             fontSize = 12.sp
         ),
-        color = MaterialTheme.colorScheme.onSurface,
+        color = if (isEmptyValue) extras.emptyValueInk else MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier

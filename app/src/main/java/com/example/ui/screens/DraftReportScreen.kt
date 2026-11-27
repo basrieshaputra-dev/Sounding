@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,7 +39,6 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +55,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -76,16 +78,38 @@ import com.example.ui.components.DraftDetailTableSection
 import com.example.ui.components.TankEditFocus
 import com.example.ui.components.TankShiftEditBottomSheet
 import com.example.ui.components.TransferRowEditDialog
-import com.example.ui.theme.BrandDeepTeal
-import com.example.ui.theme.BrandLeafGreen
 import com.example.ui.theme.MonoTypography
 import com.example.ui.theme.SoundingThemeExtras
 import com.example.util.SoundingFormatters
+
+private val FIELD_GRID_PREBLEND_ORDER = listOf("T.101", "T.111", "T.121", "T.102", "T.112", "T.122")
+private val FIELD_GRID_TOWERTANK_ORDER = listOf("T.171", "T.172", "T.173", "T.174", "T.176", "T.177", "T.50")
+
+private val DEFAULT_TANK_CAPACITIES_TON = mapOf(
+    "T.101" to 30,
+    "T.111" to 30,
+    "T.121" to 30,
+    "T.102" to 30,
+    "T.112" to 30,
+    "T.122" to 30,
+    "T.171" to 60,
+    "T.172" to 60,
+    "T.173" to 60,
+    "T.174" to 60,
+    "T.176" to 60,
+    "T.177" to 60,
+    "T.50" to 50
+)
+
+private val DraftCardShape = RoundedCornerShape(20.dp)
+private val FieldTankCellShape = RoundedCornerShape(16.dp)
+private val DraftCtaShape = RoundedCornerShape(16.dp)
 
 @Composable
 fun DraftReportScreen(
     draft: ShiftReportDraft,
     historyLogs: List<SoundingLogEntity>,
+    tankCapacitiesTon: Map<String, Int> = emptyMap(),
     cloudShiftReports: List<ShiftReportCloudDoc> = emptyList(),
     availableDraftDates: List<DateFilterOption> = emptyList(),
     availableDraftAccounts: List<String> = emptyList(),
@@ -114,6 +138,11 @@ fun DraftReportScreen(
     var editingTransferDialog by remember { mutableStateOf<Pair<Boolean, TransferLogItem?>>(false to null) }
     var showResetConfirm by remember { mutableStateOf(false) }
 
+    val resolvedCapacities = remember(tankCapacitiesTon) {
+        if (tankCapacitiesTon.isEmpty()) DEFAULT_TANK_CAPACITIES_TON
+        else DEFAULT_TANK_CAPACITIES_TON + tankCapacitiesTon
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -140,49 +169,59 @@ fun DraftReportScreen(
                 onExportJpg = onOpenExportDraftJpg
             )
 
-            // 2 Sub-Tab Switcher
-            Row(
+            // 2. Segmented Sub-Tab Switcher (Sage & Warm Sand pill track)
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                shape = RoundedCornerShape(16.dp),
+                color = extras.innerContainer,
+                border = BorderStroke(1.dp, extras.cardBorder)
             ) {
-                listOf(
-                    DraftSubTab.SUMMARY_TF to stringResource(R.string.draft_subtab_summary),
-                    DraftSubTab.DETAIL_TABLE to stringResource(R.string.draft_subtab_detail)
-                ).forEach { (tab, label) ->
-                    val selected = selectedSubTab == tab
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .clickable { selectedSubTab = tab }
-                            .testTag(
-                                if (tab == DraftSubTab.SUMMARY_TF) "draft_subtab_summary" else "draft_subtab_detail"
-                            ),
-                        shape = MaterialTheme.shapes.medium,
-                        color = if (selected) BrandDeepTeal else MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(
-                            width = if (selected) 1.5.dp else 1.dp,
-                            color = if (selected) BrandDeepTeal else extras.cardBorder
-                        ),
-                        shadowElevation = if (selected) 2.dp else 0.dp
-                    ) {
-                        Box(
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    listOf(
+                        DraftSubTab.SUMMARY_TF to stringResource(R.string.draft_subtab_summary),
+                        DraftSubTab.DETAIL_TABLE to stringResource(R.string.draft_subtab_detail)
+                    ).forEach { (tab, label) ->
+                        val selected = selectedSubTab == tab
+                        Surface(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.Bold
+                                .weight(1f)
+                                .heightIn(min = 44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { selectedSubTab = tab }
+                                .testTag(
+                                    if (tab == DraftSubTab.SUMMARY_TF) "draft_subtab_summary" else "draft_subtab_detail"
                                 ),
-                                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (selected) extras.sagePrimary else Color.Transparent,
+                            shadowElevation = if (selected && !extras.isDark) 1.dp else 0.dp
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = if (selected) {
+                                        extras.onSagePrimary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
@@ -195,8 +234,8 @@ fun DraftReportScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 item(key = "cloud_report_monitor") {
                     CloudReportMonitorCard(
@@ -216,6 +255,7 @@ fun DraftReportScreen(
                         item(key = "stok_awal") {
                             StokAwalCard(
                                 rows = draft.tankRows,
+                                capacitiesTon = resolvedCapacities,
                                 onEditTank = { row ->
                                     editingTankTarget = row to TankEditFocus.S_AWAL
                                 }
@@ -238,6 +278,7 @@ fun DraftReportScreen(
                         item(key = "stok_akhir") {
                             StokAkhirCard(
                                 rows = draft.tankRows,
+                                capacitiesTon = resolvedCapacities,
                                 onEditTank = { row ->
                                     editingTankTarget = row to TankEditFocus.S_AKHIR
                                 }
@@ -257,25 +298,28 @@ fun DraftReportScreen(
                     }
                 }
 
-                // Bottom Export Draft (.JPG) CTA
+                // Bottom Export Draft (.JPG) CTA — 52dp height, 16dp radius, SagePrimary
                 item(key = "export_draft_cta") {
                     Button(
                         onClick = onOpenExportDraftJpg,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 4.dp, bottom = 14.dp)
+                            .padding(top = 4.dp, bottom = 16.dp)
                             .heightIn(min = 52.dp)
                             .testTag("draft_export_jpg_button"),
-                        shape = MaterialTheme.shapes.medium,
+                        shape = DraftCtaShape,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = BrandLeafGreen,
-                            contentColor = Color.White
+                            containerColor = extras.sagePrimary,
+                            contentColor = extras.onSagePrimary
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = if (extras.isDark) 0.dp else 2.dp
                         )
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Image,
                             contentDescription = null,
-                            modifier = Modifier.size(19.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
@@ -360,35 +404,38 @@ private fun ReportIdentityStickyHeader(
 ) {
     val extras = SoundingThemeExtras.colors
     val fieldColors = OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = extras.leafAccent,
-        focusedLabelColor = extras.leafAccentReadable,
-        cursorColor = extras.leafAccentReadable,
-        focusedContainerColor = extras.elevatedSurface,
-        unfocusedContainerColor = extras.elevatedSurface
+        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+        focusedBorderColor = extras.emeraldAccent,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+        focusedLabelColor = extras.emeraldAccent,
+        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        cursorColor = extras.emeraldAccent,
+        focusedContainerColor = extras.innerContainer,
+        unfocusedContainerColor = extras.innerContainer
     )
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 12.dp)
+            .padding(start = 16.dp, end = 16.dp, top = 10.dp)
             .testTag("draft_identity_header"),
-        shape = MaterialTheme.shapes.large,
+        shape = DraftCardShape,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, extras.cardBorder),
-        tonalElevation = 2.dp
+        shadowElevation = if (extras.isDark) 0.dp else 2.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (isViewingCloudReport) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.small,
-                    color = extras.leafContainer,
-                    border = BorderStroke(1.dp, extras.leafAccent.copy(alpha = 0.4f))
+                    shape = RoundedCornerShape(12.dp),
+                    color = extras.sageContainer
                 ) {
                     Row(
                         modifier = Modifier
@@ -405,7 +452,7 @@ private fun ReportIdentityStickyHeader(
                             Icon(
                                 imageVector = Icons.Filled.CloudDone,
                                 contentDescription = null,
-                                tint = extras.onLeafContainer,
+                                tint = extras.onSageContainer,
                                 modifier = Modifier.size(16.dp)
                             )
                             val detailMeta = listOf(
@@ -419,7 +466,7 @@ private fun ReportIdentityStickyHeader(
                                     detailMeta
                                 ),
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = extras.onLeafContainer,
+                                color = extras.onSageContainer,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -432,7 +479,7 @@ private fun ReportIdentityStickyHeader(
                             Text(
                                 text = stringResource(R.string.draft_action_back_today),
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = extras.interactiveAccent
+                                color = extras.sagePrimary
                             )
                         }
                     }
@@ -447,7 +494,7 @@ private fun ReportIdentityStickyHeader(
                 Text(
                     text = stringResource(R.string.draft_header_identity_title),
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = extras.interactiveAccent
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -455,20 +502,20 @@ private fun ReportIdentityStickyHeader(
                 ) {
                     TextButton(
                         onClick = onSyncFromHistory,
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                         modifier = Modifier.testTag("draft_sync_history_button")
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Sync,
                             contentDescription = stringResource(R.string.cd_sync_history),
                             modifier = Modifier.size(15.dp),
-                            tint = extras.leafAccentReadable
+                            tint = extras.sagePrimary
                         )
-                        Spacer(modifier = Modifier.width(3.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = stringResource(R.string.draft_action_sync_history),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = extras.leafAccentReadable
+                            color = extras.sagePrimary
                         )
                     }
                     IconButton(
@@ -480,7 +527,7 @@ private fun ReportIdentityStickyHeader(
                         Icon(
                             imageVector = Icons.Filled.CloudUpload,
                             contentDescription = stringResource(R.string.draft_action_save_cloud),
-                            tint = extras.leafAccentReadable,
+                            tint = extras.sagePrimary,
                             modifier = Modifier.size(19.dp)
                         )
                     }
@@ -506,7 +553,7 @@ private fun ReportIdentityStickyHeader(
                         Icon(
                             imageVector = Icons.Filled.Image,
                             contentDescription = stringResource(R.string.draft_action_export_jpg),
-                            tint = extras.interactiveAccent,
+                            tint = extras.sagePrimary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -528,7 +575,7 @@ private fun ReportIdentityStickyHeader(
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                     label = { Text(stringResource(R.string.label_report_date), style = MaterialTheme.typography.labelSmall) },
-                    shape = MaterialTheme.shapes.small
+                    shape = RoundedCornerShape(14.dp)
                 )
                 OutlinedTextField(
                     value = draft.operatorName,
@@ -541,21 +588,40 @@ private fun ReportIdentityStickyHeader(
                     textStyle = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                     label = { Text(stringResource(R.string.draft_label_operator), style = MaterialTheme.typography.labelSmall) },
                     placeholder = { Text(stringResource(R.string.draft_placeholder_operator), style = MaterialTheme.typography.labelSmall) },
-                    shape = MaterialTheme.shapes.small
+                    shape = RoundedCornerShape(14.dp)
                 )
             }
         }
     }
 }
 
+private fun orderFieldGroupRows(
+    rows: List<TankShiftDraftRow>,
+    group: TankGroup,
+    preferredOrder: List<String>
+): List<TankShiftDraftRow> {
+    val groupRows = rows.filter { it.group == group }
+    val orderIndex = preferredOrder.withIndex().associate { it.value to it.index }
+    return groupRows.sortedBy { orderIndex[it.tankId] ?: Int.MAX_VALUE }
+}
+
+private fun parseTankStockKg(rawQty: String): Long? {
+    val trimmed = rawQty.trim()
+    if (trimmed.isEmpty() || trimmed == "-" || trimmed.equals("empty", ignoreCase = true)) {
+        return null
+    }
+    return ShiftDraftEngine.parseQuantityKg(trimmed)
+}
+
 @Composable
 private fun StokAwalCard(
     rows: List<TankShiftDraftRow>,
+    capacitiesTon: Map<String, Int>,
     onEditTank: (TankShiftDraftRow) -> Unit
 ) {
     val extras = SoundingThemeExtras.colors
-    val preblend = rows.filter { it.group == TankGroup.PREBLEND }
-    val tower = rows.filter { it.group == TankGroup.TOWERTANK }
+    val preblend = remember(rows) { orderFieldGroupRows(rows, TankGroup.PREBLEND, FIELD_GRID_PREBLEND_ORDER) }
+    val tower = remember(rows) { orderFieldGroupRows(rows, TankGroup.TOWERTANK, FIELD_GRID_TOWERTANK_ORDER) }
     val maxCount = maxOf(preblend.size, tower.size)
     val totalAwalKg = ShiftDraftEngine.totalInitialKg(rows)
 
@@ -563,16 +629,16 @@ private fun StokAwalCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("draft_stok_awal_card"),
-        shape = MaterialTheme.shapes.large,
+        shape = DraftCardShape,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, extras.cardBorder),
-        tonalElevation = 1.dp
+        shadowElevation = if (extras.isDark) 0.dp else 2.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -591,31 +657,21 @@ private fun StokAwalCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Text(
-                    text = "${SoundingFormatters.formatIndonesianInteger(totalAwalKg)} kg",
-                    style = MonoTypography.subMetric.copy(fontWeight = FontWeight.Bold),
-                    color = extras.interactiveAccent
-                )
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = "${SoundingFormatters.formatIndonesianInteger(totalAwalKg)} kg",
+                        style = MonoTypography.subMetric.copy(fontWeight = FontWeight.Bold),
+                        color = extras.amberTextReadable
+                    )
+                    Text(
+                        text = "${SoundingFormatters.formatTon(totalAwalKg / 1000.0)} Ton",
+                        style = MonoTypography.fieldTon,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
-            // Column group labels
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "PREBLEND",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = extras.interactiveAccent,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "TOWERTANK & T.50",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = extras.leafAccentReadable,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            DualColumnFieldGridHeader()
 
             for (i in 0 until maxCount) {
                 val left = preblend.getOrNull(i)
@@ -625,9 +681,12 @@ private fun StokAwalCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (left != null) {
-                        StokAwalCell(
+                        FieldTankStockCell(
                             row = left,
-                            accentColor = extras.interactiveAccent,
+                            rawQuantity = left.sAwal.quantityKg,
+                            capacityTon = capacitiesTon[left.tankId] ?: 30,
+                            showProductLabel = left.oilType.isNotBlank(),
+                            testTag = "draft_awal_${left.tankId}",
                             onClick = { onEditTank(left) },
                             modifier = Modifier.weight(1f)
                         )
@@ -635,9 +694,12 @@ private fun StokAwalCard(
                         Spacer(modifier = Modifier.weight(1f))
                     }
                     if (right != null) {
-                        StokAwalCell(
+                        FieldTankStockCell(
                             row = right,
-                            accentColor = extras.leafAccentReadable,
+                            rawQuantity = right.sAwal.quantityKg,
+                            capacityTon = capacitiesTon[right.tankId] ?: 60,
+                            showProductLabel = right.oilType.isNotBlank(),
+                            testTag = "draft_awal_${right.tankId}",
                             onClick = { onEditTank(right) },
                             modifier = Modifier.weight(1f)
                         )
@@ -651,42 +713,199 @@ private fun StokAwalCard(
 }
 
 @Composable
-private fun StokAwalCell(
+private fun DualColumnFieldGridHeader() {
+    val extras = SoundingThemeExtras.colors
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Surface(
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(10.dp),
+            color = extras.sageContainer
+        ) {
+            Text(
+                text = "PREBLEND",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.6.sp
+                ),
+                color = extras.onSageContainer,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+            )
+        }
+        Surface(
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(10.dp),
+            color = extras.sageContainer
+        ) {
+            Text(
+                text = "TOWERTANK & T.50",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.6.sp
+                ),
+                color = extras.onSageContainer,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun FieldTankStockCell(
     row: TankShiftDraftRow,
-    accentColor: Color,
+    rawQuantity: String,
+    capacityTon: Int,
+    showProductLabel: Boolean,
+    testTag: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val extras = SoundingThemeExtras.colors
-    val qtyText = ShiftDraftEngine.formatQuantityDisplay(row.sAwal.quantityKg)
+    val qtyDisplay = ShiftDraftEngine.formatQuantityDisplay(rawQuantity)
+    val parsedKg = parseTankStockKg(rawQuantity)
+    val isFilled = parsedKg != null && parsedKg > 0L
+    val fillRatio = if (isFilled && capacityTon > 0) {
+        (parsedKg.toDouble() / (capacityTon * 1000.0)).toFloat().coerceIn(0.05f, 1f)
+    } else {
+        0f
+    }
+
+    val containerColor = if (isFilled) {
+        MaterialTheme.colorScheme.surface
+    } else {
+        extras.innerContainer
+    }
+    val cellBorder = if (isFilled) {
+        BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    } else {
+        BorderStroke(1.dp, extras.cardBorder.copy(alpha = 0.7f))
+    }
+    val pillBg = if (isFilled) {
+        extras.sagePrimary
+    } else {
+        extras.sagePrimary.copy(alpha = if (extras.isDark) 0.28f else 0.72f)
+    }
+    val pillInk = if (isFilled) {
+        extras.onSagePrimary
+    } else {
+        if (extras.isDark) extras.onSageContainer else extras.onSagePrimary
+    }
+
+    val productSummary = remember(row.oilType, row.summaryNote) {
+        val oil = row.oilType.trim()
+        val note = row.summaryNote.trim()
+        when {
+            oil.isNotEmpty() -> oil
+            note.isNotEmpty() -> note
+            else -> ""
+        }
+    }
+
     Surface(
         modifier = modifier
-            .heightIn(min = 48.dp)
+            .heightIn(min = 68.dp)
+            .clip(FieldTankCellShape)
             .clickable(onClick = onClick)
-            .testTag("draft_awal_${row.tankId}"),
-        shape = MaterialTheme.shapes.small,
-        color = extras.elevatedSurface,
-        border = BorderStroke(1.dp, extras.cardBorder)
+            .testTag(testTag),
+        shape = FieldTankCellShape,
+        color = containerColor,
+        border = cellBorder,
+        shadowElevation = if (isFilled && !extras.isDark) 1.dp else 0.dp
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(
-                text = row.tankId,
-                style = MonoTypography.badge.copy(fontWeight = FontWeight.Bold),
-                color = accentColor
-            )
-            Text(
-                text = qtyText,
-                style = MonoTypography.subMetric.copy(fontSize = 13.5.sp, fontWeight = FontWeight.Bold),
-                color = if (qtyText == "-") MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            // Top Row: Tank Code Sage Pill Badge + Short Product Label
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = pillBg
+                ) {
+                    Text(
+                        text = row.tankId,
+                        style = MonoTypography.badge.copy(
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        ),
+                        color = pillInk,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.5.dp)
+                    )
+                }
+
+                if (isFilled && showProductLabel && productSummary.isNotEmpty()) {
+                    Text(
+                        text = productSummary,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(start = 6.dp)
+                    )
+                }
+            }
+
+            // Value Row: Tabular Figures kg + Ton
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Text(
+                    text = if (isFilled) "$qtyDisplay kg" else qtyDisplay,
+                    style = MonoTypography.fieldStock.copy(
+                        fontSize = if (isFilled) 13.5.sp else 13.sp,
+                        fontWeight = if (isFilled) FontWeight.ExtraBold else FontWeight.SemiBold
+                    ),
+                    color = if (isFilled) MaterialTheme.colorScheme.onSurface else extras.emptyValueInk,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                if (isFilled && parsedKg != null) {
+                    Text(
+                        text = "${SoundingFormatters.formatTon(parsedKg / 1000.0)} T",
+                        style = MonoTypography.fieldTon.copy(fontSize = 10.5.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            // Subtle Mini Fill Progress Bar at the bottom of the cell
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(
+                        if (isFilled) extras.innerContainer else extras.cardBorder.copy(alpha = 0.4f)
+                    )
+            ) {
+                if (isFilled && fillRatio > 0f) {
+                    val barColor = if (fillRatio >= 0.96f) extras.warningBorder else extras.sagePrimary
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(fillRatio)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(barColor)
+                    )
+                }
+            }
         }
     }
 }
@@ -704,10 +923,10 @@ private fun DraftTransferCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("draft_transfers_card"),
-        shape = MaterialTheme.shapes.large,
+        shape = DraftCardShape,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, extras.cardBorder),
-        tonalElevation = 1.dp
+        shadowElevation = if (extras.isDark) 0.dp else 2.dp
     ) {
         Column(
             modifier = Modifier
@@ -731,9 +950,10 @@ private fun DraftTransferCard(
                     modifier = Modifier
                         .heightIn(min = 44.dp)
                         .testTag("draft_add_transfer_button"),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                    border = BorderStroke(1.dp, extras.leafAccent),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = extras.leafAccentReadable)
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    border = BorderStroke(1.dp, extras.sagePrimary.copy(alpha = 0.65f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = extras.sagePrimary)
                 ) {
                     Icon(imageVector = Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -742,32 +962,37 @@ private fun DraftTransferCard(
             }
 
             if (transfers.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.draft_tf_empty),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 6.dp)
-                )
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = extras.innerContainer
+                ) {
+                    Text(
+                        text = stringResource(R.string.draft_tf_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                    )
+                }
             } else {
                 transfers.forEachIndexed { idx, tf ->
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("draft_tf_row_$idx"),
-                        shape = MaterialTheme.shapes.small,
-                        color = extras.elevatedSurface,
-                        border = BorderStroke(1.dp, extras.cardBorder)
+                        shape = RoundedCornerShape(14.dp),
+                        color = extras.innerContainer
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = 10.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                                .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Column(
                                 modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                                verticalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -776,16 +1001,25 @@ private fun DraftTransferCard(
                                     Text(
                                         text = tf.jam.ifBlank { "-" },
                                         style = MonoTypography.badge.copy(fontWeight = FontWeight.Bold),
-                                        color = extras.interactiveAccent
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     val qtyDisplay = tf.qtyKg.trim().let { raw ->
                                         if (raw.isEmpty()) "-" else "${ShiftDraftEngine.formatQuantityDisplay(raw)} kg"
                                     }
-                                    Text(
-                                        text = "Qty: $qtyDisplay",
-                                        style = MonoTypography.badge.copy(fontWeight = FontWeight.Bold),
-                                        color = extras.leafAccentReadable
-                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(999.dp),
+                                        color = extras.sageContainer
+                                    ) {
+                                        Text(
+                                            text = "Qty: $qtyDisplay",
+                                            style = MonoTypography.badge.copy(
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.Bold
+                                            ),
+                                            color = extras.onSageContainer,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                        )
+                                    }
                                 }
                                 Text(
                                     text = tf.keterangan.ifBlank { "-" },
@@ -800,7 +1034,7 @@ private fun DraftTransferCard(
                                 Icon(
                                     imageVector = Icons.Filled.Edit,
                                     contentDescription = stringResource(R.string.cd_edit_item),
-                                    tint = extras.interactiveAccent,
+                                    tint = extras.sagePrimary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -833,10 +1067,10 @@ private fun DraftNbCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("draft_nb_card"),
-        shape = MaterialTheme.shapes.large,
+        shape = DraftCardShape,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, extras.cardBorder),
-        tonalElevation = 1.dp
+        shadowElevation = if (extras.isDark) 0.dp else 2.dp
     ) {
         Column(
             modifier = Modifier
@@ -859,13 +1093,17 @@ private fun DraftNbCard(
                 maxLines = 4,
                 placeholder = { Text(stringResource(R.string.draft_placeholder_nb)) },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = extras.leafAccent,
-                    focusedLabelColor = extras.leafAccentReadable,
-                    cursorColor = extras.leafAccentReadable,
-                    focusedContainerColor = extras.elevatedSurface,
-                    unfocusedContainerColor = extras.elevatedSurface
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedBorderColor = extras.emeraldAccent,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedLabelColor = extras.emeraldAccent,
+                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    cursorColor = extras.emeraldAccent,
+                    focusedContainerColor = extras.innerContainer,
+                    unfocusedContainerColor = extras.innerContainer
                 ),
-                shape = MaterialTheme.shapes.medium
+                shape = RoundedCornerShape(16.dp)
             )
         }
     }
@@ -874,25 +1112,29 @@ private fun DraftNbCard(
 @Composable
 private fun StokAkhirCard(
     rows: List<TankShiftDraftRow>,
+    capacitiesTon: Map<String, Int>,
     onEditTank: (TankShiftDraftRow) -> Unit
 ) {
     val extras = SoundingThemeExtras.colors
+    val preblend = remember(rows) { orderFieldGroupRows(rows, TankGroup.PREBLEND, FIELD_GRID_PREBLEND_ORDER) }
+    val tower = remember(rows) { orderFieldGroupRows(rows, TankGroup.TOWERTANK, FIELD_GRID_TOWERTANK_ORDER) }
+    val maxCount = maxOf(preblend.size, tower.size)
     val totalAkhirKg = ShiftDraftEngine.totalFinalKg(rows)
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("draft_stok_akhir_card"),
-        shape = MaterialTheme.shapes.large,
+        shape = DraftCardShape,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, extras.cardBorder),
-        tonalElevation = 1.dp
+        shadowElevation = if (extras.isDark) 0.dp else 2.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -915,69 +1157,51 @@ private fun StokAkhirCard(
                     Text(
                         text = "${SoundingFormatters.formatIndonesianInteger(totalAkhirKg)} kg",
                         style = MonoTypography.subMetric.copy(fontWeight = FontWeight.Bold),
-                        color = extras.leafAccentReadable
+                        color = extras.amberTextReadable
                     )
                     Text(
                         text = "${SoundingFormatters.formatTon(totalAkhirKg / 1000.0)} Ton",
-                        style = MonoTypography.badge,
+                        style = MonoTypography.fieldTon,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            rows.forEachIndexed { idx, row ->
-                val qtyLabel = ShiftDraftEngine.formatQuantityDisplay(row.sAkhir.quantityKg)
-                val accent = if (row.group == TankGroup.PREBLEND) extras.interactiveAccent else extras.leafAccentReadable
-                val descParts = listOf(row.oilType.trim(), row.summaryNote.trim()).filter { it.isNotEmpty() }
-                val descText = descParts.joinToString(" • ").ifEmpty { "-" }
+            DualColumnFieldGridHeader()
 
-                if (idx > 0) HorizontalDivider(color = extras.cardBorder.copy(alpha = 0.7f))
-
+            for (i in 0 until maxCount) {
+                val left = preblend.getOrNull(i)
+                val right = tower.getOrNull(i)
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .clickable { onEditTank(row) }
-                        .padding(vertical = 8.dp, horizontal = 4.dp)
-                        .testTag("draft_akhir_${row.tankId}"),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(7.dp),
-                        color = extras.elevatedSurface,
-                        border = BorderStroke(1.dp, accent.copy(alpha = 0.5f))
-                    ) {
-                        Text(
-                            text = row.tankId,
-                            style = MonoTypography.badge.copy(fontWeight = FontWeight.Bold),
-                            color = accent,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    if (left != null) {
+                        FieldTankStockCell(
+                            row = left,
+                            rawQuantity = left.sAkhir.quantityKg,
+                            capacityTon = capacitiesTon[left.tankId] ?: 30,
+                            showProductLabel = true,
+                            testTag = "draft_akhir_${left.tankId}",
+                            onClick = { onEditTank(left) },
+                            modifier = Modifier.weight(1f)
                         )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
-
-                    Text(
-                        text = qtyLabel,
-                        style = MonoTypography.subMetric.copy(fontWeight = FontWeight.Bold),
-                        color = if (qtyLabel == "-") MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.width(86.dp)
-                    )
-
-                    Text(
-                        text = descText,
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    Icon(
-                        imageVector = Icons.Filled.Edit,
-                        contentDescription = stringResource(R.string.cd_edit_item),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.size(16.dp)
-                    )
+                    if (right != null) {
+                        FieldTankStockCell(
+                            row = right,
+                            rawQuantity = right.sAkhir.quantityKg,
+                            capacityTon = capacitiesTon[right.tankId] ?: 60,
+                            showProductLabel = true,
+                            testTag = "draft_akhir_${right.tankId}",
+                            onClick = { onEditTank(right) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                 }
             }
         }
@@ -1002,10 +1226,10 @@ private fun CloudReportMonitorCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("draft_cloud_monitor_card"),
-        shape = MaterialTheme.shapes.large,
+        shape = DraftCardShape,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, extras.cardBorder),
-        tonalElevation = 1.dp
+        shadowElevation = if (extras.isDark) 0.dp else 2.dp
     ) {
         Column(
             modifier = Modifier
@@ -1028,7 +1252,7 @@ private fun CloudReportMonitorCard(
                     Icon(
                         imageVector = Icons.Filled.Groups,
                         contentDescription = null,
-                        tint = extras.interactiveAccent,
+                        tint = extras.sagePrimary,
                         modifier = Modifier.size(19.dp)
                     )
                     Text(
@@ -1038,12 +1262,12 @@ private fun CloudReportMonitorCard(
                     )
                     Surface(
                         shape = RoundedCornerShape(999.dp),
-                        color = extras.leafContainer
+                        color = extras.sageContainer
                     ) {
                         Text(
                             text = cloudReports.size.toString(),
                             style = MonoTypography.badge,
-                            color = extras.onLeafContainer,
+                            color = extras.onSageContainer,
                             modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                         )
                     }
@@ -1056,7 +1280,6 @@ private fun CloudReportMonitorCard(
             }
 
             if (expanded) {
-                // Date filter chips
                 if (availableDates.isNotEmpty()) {
                     Row(
                         modifier = Modifier
@@ -1083,7 +1306,6 @@ private fun CloudReportMonitorCard(
                     }
                 }
 
-                // Account filter chips
                 if (availableAccounts.isNotEmpty()) {
                     Row(
                         modifier = Modifier
@@ -1135,14 +1357,15 @@ private fun CloudReportMonitorCard(
                             Surface(
                                 modifier = Modifier
                                     .width(214.dp)
+                                    .clip(RoundedCornerShape(16.dp))
                                     .clickable { onOpenReport(report) }
                                     .testTag("cloud_report_${report.id}"),
-                                shape = MaterialTheme.shapes.medium,
-                                color = extras.elevatedSurface,
+                                shape = RoundedCornerShape(16.dp),
+                                color = extras.innerContainer,
                                 border = BorderStroke(1.dp, extras.cardBorder)
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(10.dp),
+                                    modifier = Modifier.padding(11.dp),
                                     verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Row(
@@ -1151,16 +1374,16 @@ private fun CloudReportMonitorCard(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = extras.leafContainer
+                                            shape = RoundedCornerShape(999.dp),
+                                            color = extras.sageContainer
                                         ) {
                                             Text(
                                                 text = report.displayAccountName.ifBlank { "-" },
                                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                                color = extras.onLeafContainer,
+                                                color = extras.onSageContainer,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                                             )
                                         }
                                         if (timeText.isNotEmpty()) {
@@ -1183,7 +1406,7 @@ private fun CloudReportMonitorCard(
                                     Text(
                                         text = "Akhir: ${SoundingFormatters.formatIndonesianInteger(report.totalAkhirKg)} kg • ${report.transferCount} TF",
                                         style = MonoTypography.badge,
-                                        color = extras.interactiveAccent,
+                                        color = extras.sagePrimary,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -1207,35 +1430,28 @@ private fun DraftFilterChip(
 ) {
     val extras = SoundingThemeExtras.colors
     val bgColor = when {
-        selected && usePrimaryFill -> extras.executiveActionSurface
-        selected -> extras.leafContainer
-        else -> extras.elevatedSurface
-    }
-    val borderColor = when {
-        selected && usePrimaryFill -> extras.executiveActionSurface
-        selected -> extras.leafAccent
-        else -> extras.cardBorder
+        selected && usePrimaryFill -> extras.sagePrimary
+        selected -> extras.sageContainer
+        else -> extras.innerContainer
     }
     val textColor = when {
-        selected && usePrimaryFill -> Color.White
-        selected -> extras.onLeafContainer
+        selected && usePrimaryFill -> extras.onSagePrimary
+        selected -> extras.onSageContainer
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     Surface(
         modifier = Modifier
-            .heightIn(min = 34.dp)
+            .heightIn(min = 36.dp)
+            .clip(RoundedCornerShape(999.dp))
             .clickable(onClick = onClick)
             .testTag(testTag),
         shape = RoundedCornerShape(999.dp),
         color = bgColor,
-        border = BorderStroke(
-            width = if (selected) 1.5.dp else 1.dp,
-            color = borderColor
-        )
+        border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
         Box(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(

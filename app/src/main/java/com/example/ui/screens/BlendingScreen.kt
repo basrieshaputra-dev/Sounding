@@ -83,16 +83,15 @@ import com.example.data.BlendingQuantities
 import com.example.data.PearsonSquareResult
 import com.example.data.QuantityInputSource
 import com.example.data.ShorteningSpec
-import com.example.ui.theme.BrandDeepTeal
 import com.example.ui.theme.MonoTypography
 import com.example.ui.theme.OilYellowDeep
-import com.example.ui.theme.SaveGradientGreen
 import com.example.ui.theme.SoundingThemeExtras
 import com.example.util.SoundingFormatters
 import kotlin.math.abs
 
 private val BlendingCardShape = RoundedCornerShape(20.dp)
 private val BlendingPillShape = RoundedCornerShape(999.dp)
+private val BlendingCtaShape = RoundedCornerShape(16.dp)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -372,13 +371,13 @@ fun BlendingScreen(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 56.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .heightIn(min = 58.dp)
+                        .clip(BlendingCtaShape)
                         .clickable { showSpecPicker = true }
                         .testTag("blending_spec_selector"),
-                    shape = RoundedCornerShape(14.dp),
-                    color = extras.elevatedSurface,
-                    border = BorderStroke(1.2.dp, extras.leafAccent.copy(alpha = 0.55f))
+                    shape = BlendingCtaShape,
+                    color = extras.innerContainer,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                 ) {
                     Row(
                         modifier = Modifier
@@ -438,9 +437,9 @@ fun BlendingScreen(
                 // Active Ratio Visual Split Bar + Info Pills
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    color = extras.leafContainer.copy(alpha = if (extras.isDark) 0.55f else 0.72f),
-                    border = BorderStroke(1.dp, extras.leafAccent.copy(alpha = 0.35f))
+                    shape = BlendingCtaShape,
+                    color = extras.sageContainer.copy(alpha = if (extras.isDark) 0.65f else 0.78f),
+                    border = BorderStroke(1.dp, extras.cardBorder)
                 ) {
                     Column(
                         modifier = Modifier
@@ -493,11 +492,7 @@ fun BlendingScreen(
                                     modifier = Modifier
                                         .weight(rpoWeight)
                                         .fillMaxHeight()
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                colors = listOf(SaveGradientGreen, extras.limeAccent)
-                                            )
-                                        )
+                                        .background(extras.emeraldAccent)
                                 )
                             }
                             if (rpsWeight > 0.001f) {
@@ -505,7 +500,7 @@ fun BlendingScreen(
                                     modifier = Modifier
                                         .weight(rpsWeight)
                                         .fillMaxHeight()
-                                        .background(OilYellowDeep)
+                                        .background(extras.amberAccent)
                                 )
                             }
                         }
@@ -517,7 +512,7 @@ fun BlendingScreen(
                             RatioStatChip(
                                 label = "RPO",
                                 percentText = BlendingEngine.formatPercent(activeRpoPercent),
-                                dotColor = extras.limeAccent,
+                                dotColor = extras.emeraldAccent,
                                 standardNote = if (isRatioAutoCorrected) {
                                     "Std ${BlendingEngine.formatPercent(selectedSpec.standardRpoPercent)}"
                                 } else null,
@@ -526,7 +521,7 @@ fun BlendingScreen(
                             RatioStatChip(
                                 label = "RPS",
                                 percentText = BlendingEngine.formatPercent(activeRpsPercent),
-                                dotColor = OilYellowDeep,
+                                dotColor = extras.amberAccent,
                                 standardNote = if (isRatioAutoCorrected) {
                                     "Std ${BlendingEngine.formatPercent(selectedSpec.standardRpsPercent)}"
                                 } else null,
@@ -567,9 +562,15 @@ fun BlendingScreen(
                             imeAction = ImeAction.Next
                         ),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = extras.leafAccent,
-                            focusedLabelColor = extras.leafAccentReadable,
-                            cursorColor = extras.leafAccentReadable
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedBorderColor = extras.emeraldAccent,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                            focusedLabelColor = extras.emeraldAccent,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            cursorColor = extras.emeraldAccent,
+                            focusedContainerColor = extras.innerContainer,
+                            unfocusedContainerColor = extras.innerContainer
                         ),
                         shape = RoundedCornerShape(14.dp)
                     )
@@ -592,9 +593,15 @@ fun BlendingScreen(
                             imeAction = ImeAction.Done
                         ),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = extras.leafAccent,
-                            focusedLabelColor = extras.leafAccentReadable,
-                            cursorColor = extras.leafAccentReadable
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedBorderColor = extras.emeraldAccent,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                            focusedLabelColor = extras.emeraldAccent,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            cursorColor = extras.emeraldAccent,
+                            focusedContainerColor = extras.innerContainer,
+                            unfocusedContainerColor = extras.innerContainer
                         ),
                         shape = RoundedCornerShape(14.dp)
                     )
@@ -633,17 +640,17 @@ fun BlendingScreen(
                                 Text(
                                     text = SoundingFormatters.formatFixed(estimatedIv, 2),
                                     style = MonoTypography.heroMetric.copy(
-                                        fontSize = 28.sp,
+                                        fontSize = 30.sp,
                                         fontWeight = FontWeight.ExtraBold
                                     ),
-                                    color = statusAccentColor,
+                                    color = if (isInSpec) extras.amberTextReadable else extras.warningText,
                                     modifier = Modifier.testTag("blending_estimated_iv_value")
                                 )
                             }
 
                             Surface(
                                 shape = BlendingPillShape,
-                                color = if (isInSpec) extras.limeAccent else extras.warningBorder,
+                                color = if (isInSpec) extras.emeraldAccent else extras.warningBorder,
                                 modifier = Modifier.testTag("blending_spec_badge")
                             ) {
                                 Row(
@@ -654,7 +661,7 @@ fun BlendingScreen(
                                     Icon(
                                         imageVector = if (isInSpec) Icons.Filled.CheckCircle else Icons.Filled.WarningAmber,
                                         contentDescription = null,
-                                        tint = if (isInSpec) extras.onLimeButton else Color(0xFF1F1300),
+                                        tint = if (isInSpec) extras.onEmeraldAccent else Color(0xFF1F1300),
                                         modifier = Modifier.size(15.dp)
                                     )
                                     Text(
@@ -665,7 +672,7 @@ fun BlendingScreen(
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.ExtraBold
                                         ),
-                                        color = if (isInSpec) extras.onLimeButton else Color(0xFF1F1300)
+                                        color = if (isInSpec) extras.onEmeraldAccent else Color(0xFF1F1300)
                                     )
                                 }
                             }
@@ -697,9 +704,9 @@ fun BlendingScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 4.dp)
-                                    .heightIn(min = 48.dp)
-                                    .clip(BlendingPillShape)
-                                    .background(extras.executiveActionSurface)
+                                    .heightIn(min = 50.dp)
+                                    .clip(BlendingCtaShape)
+                                    .background(extras.sagePrimary)
                                     .clickable { onAutoCorrectRatio() }
                                     .testTag("blending_auto_correct_button"),
                                 contentAlignment = Alignment.Center
@@ -712,13 +719,13 @@ fun BlendingScreen(
                                     Icon(
                                         imageVector = Icons.Filled.AutoFixHigh,
                                         contentDescription = null,
-                                        tint = extras.headerSubtitleAccent,
+                                        tint = extras.onSagePrimary,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Text(
                                         text = stringResource(R.string.blending_action_auto_correct),
                                         style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                                        color = Color.White
+                                        color = extras.onSagePrimary
                                     )
                                 }
                             }
@@ -729,10 +736,10 @@ fun BlendingScreen(
                                 onClick = { onResetRatioToTable() },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .heightIn(min = 48.dp)
+                                    .heightIn(min = 50.dp)
                                     .testTag("blending_reset_ratio_button"),
-                                shape = BlendingPillShape,
-                                border = BorderStroke(1.dp, statusAccentColor.copy(alpha = 0.65f)),
+                                shape = BlendingCtaShape,
+                                border = BorderStroke(1.dp, statusAccentColor.copy(alpha = 0.55f)),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = statusAccentColor)
                             ) {
                                 Icon(
@@ -785,14 +792,20 @@ fun BlendingScreen(
                                 }
                                 .testTag("blending_preset_${presetKg.toLong()}"),
                             shape = BlendingPillShape,
-                            color = if (isSelected) extras.leafContainer else extras.elevatedSurface,
+                            color = if (isSelected) {
+                                extras.amberAccent
+                            } else if (extras.isDark) {
+                                extras.innerContainer
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            },
                             border = BorderStroke(
                                 width = if (isSelected) 1.5.dp else 1.dp,
-                                color = if (isSelected) extras.leafAccent else extras.cardBorder
+                                color = if (isSelected) extras.amberAccent else MaterialTheme.colorScheme.outline
                             )
                         ) {
                             Box(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                modifier = Modifier.padding(horizontal = 13.dp, vertical = 7.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -800,7 +813,7 @@ fun BlendingScreen(
                                     style = MonoTypography.badge.copy(
                                         fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold
                                     ),
-                                    color = if (isSelected) extras.onLeafContainer else MaterialTheme.colorScheme.onSurface
+                                    color = if (isSelected) extras.onAmberAccent else MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
@@ -875,8 +888,8 @@ fun BlendingScreen(
                     .testTag("blending_summary_bento_card"),
                 shape = BlendingCardShape,
                 color = extras.resultSurface,
-                border = BorderStroke(1.2.dp, extras.resultBorder),
-                tonalElevation = 2.dp
+                border = BorderStroke(1.dp, extras.resultBorder),
+                shadowElevation = if (extras.isDark) 0.dp else 2.dp
             ) {
                 Column(
                     modifier = Modifier
@@ -898,7 +911,7 @@ fun BlendingScreen(
                                     .width(4.dp)
                                     .height(20.dp)
                                     .clip(BlendingPillShape)
-                                    .background(extras.limeAccent)
+                                    .background(extras.emeraldAccent)
                             )
                             Text(
                                 text = stringResource(R.string.blending_summary_title),
@@ -940,7 +953,7 @@ fun BlendingScreen(
                             ratioBadge = BlendingEngine.formatPercent(activeRpsPercent),
                             kgValue = BlendingEngine.formatKgDisplay(quantities.rpsKg),
                             tonValue = BlendingEngine.formatTonDisplay(quantities.rpsKg),
-                            accentColor = OilYellowDeep,
+                            accentColor = extras.amberTextReadable,
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("blending_bento_rps")
@@ -1011,7 +1024,7 @@ fun BlendingScreen(
                                         fontSize = 20.sp,
                                         fontWeight = FontWeight.ExtraBold
                                     ),
-                                    color = if (isInSpec) extras.leafAccentReadable else extras.warningText
+                                    color = if (isInSpec) extras.amberTextReadable else extras.warningText
                                 )
                                 Text(
                                     text = if (isInSpec) "IN SPEC" else "DI LUAR SPEC",
@@ -1019,13 +1032,13 @@ fun BlendingScreen(
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.ExtraBold
                                     ),
-                                    color = if (isInSpec) extras.leafAccentReadable else extras.warningText
+                                    color = if (isInSpec) extras.emeraldAccent else extras.warningText
                                 )
                             }
                         }
                     }
 
-                    // Primary Capsule CTA: Salin Hasil Blending + Reset Angka
+                    // Primary CTA: Salin Hasil Blending + Reset Angka
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1035,12 +1048,8 @@ fun BlendingScreen(
                             modifier = Modifier
                                 .weight(1.45f)
                                 .heightIn(min = 52.dp)
-                                .clip(BlendingPillShape)
-                                .background(
-                                    Brush.horizontalGradient(
-                                        colors = listOf(SaveGradientGreen, extras.limeAccent, extras.primaryCtaEnd)
-                                    )
-                                )
+                                .clip(BlendingCtaShape)
+                                .background(extras.sagePrimary)
                                 .clickable {
                                     try {
                                         val summary = BlendingEngine.formatWhatsAppSummary(
@@ -1077,14 +1086,14 @@ fun BlendingScreen(
                                 Icon(
                                     imageVector = Icons.Filled.ContentCopy,
                                     contentDescription = null,
-                                    tint = extras.onLimeButton,
+                                    tint = extras.onSagePrimary,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(7.dp))
                                 Text(
                                     text = stringResource(R.string.blending_action_copy_result),
                                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold),
-                                    color = extras.onLimeButton,
+                                    color = extras.onSagePrimary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -1097,7 +1106,7 @@ fun BlendingScreen(
                                 .weight(0.95f)
                                 .heightIn(min = 52.dp)
                                 .testTag("blending_reset_button"),
-                            shape = BlendingPillShape,
+                            shape = BlendingCtaShape,
                             border = BorderStroke(1.dp, extras.cardBorder),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 containerColor = MaterialTheme.colorScheme.surface,
@@ -1148,7 +1157,7 @@ private fun BlendingCard(
         shape = BlendingCardShape,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, extras.cardBorder),
-        tonalElevation = 1.dp
+        shadowElevation = if (extras.isDark) 0.dp else 2.dp
     ) {
         Column(
             modifier = Modifier
@@ -1177,7 +1186,7 @@ private fun BlendingSectionHeader(
             modifier = Modifier
                 .size(26.dp)
                 .clip(CircleShape)
-                .background(extras.limeAccent),
+                .background(extras.emeraldAccent),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -1186,7 +1195,7 @@ private fun BlendingSectionHeader(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.ExtraBold
                 ),
-                color = extras.onLimeButton
+                color = extras.onEmeraldAccent
             )
         }
         Column(
@@ -1305,16 +1314,16 @@ private fun QuantityLinkedField(
             ) {
                 Surface(
                     shape = BlendingPillShape,
-                    color = if (isActiveAnchor) extras.leafContainer else extras.elevatedSurface,
+                    color = if (isActiveAnchor) extras.amberContainer else MaterialTheme.colorScheme.surface,
                     border = BorderStroke(
                         1.dp,
-                        if (isActiveAnchor) extras.leafAccent else extras.cardBorder
+                        if (isActiveAnchor) extras.amberAccent else MaterialTheme.colorScheme.outline
                     )
                 ) {
                     Text(
                         text = ratioBadge,
                         style = MonoTypography.badge.copy(fontSize = 10.5.sp, fontWeight = FontWeight.Bold),
-                        color = if (isActiveAnchor) extras.onLeafContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (isActiveAnchor) extras.amberTextReadable else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
@@ -1342,10 +1351,17 @@ private fun QuantityLinkedField(
             imeAction = ImeAction.Done
         ),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = extras.leafAccent,
-            focusedLabelColor = extras.leafAccentReadable,
-            cursorColor = extras.leafAccentReadable,
-            unfocusedBorderColor = if (isActiveAnchor) extras.leafAccent.copy(alpha = 0.65f) else extras.cardBorder
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+            disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            focusedBorderColor = extras.emeraldAccent,
+            focusedLabelColor = extras.emeraldAccent,
+            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            cursorColor = extras.emeraldAccent,
+            unfocusedBorderColor = if (isActiveAnchor) extras.amberAccent else MaterialTheme.colorScheme.outline,
+            focusedContainerColor = extras.innerContainer,
+            unfocusedContainerColor = extras.innerContainer,
+            disabledContainerColor = extras.innerContainer.copy(alpha = 0.55f)
         ),
         shape = RoundedCornerShape(14.dp)
     )
@@ -1365,7 +1381,7 @@ private fun BentoQuantityTile(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, extras.metricCardBorder)
+        border = BorderStroke(1.dp, extras.cardBorder)
     ) {
         Column(
             modifier = Modifier

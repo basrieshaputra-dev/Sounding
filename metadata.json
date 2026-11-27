@@ -1,5 +1,5 @@
 {
-  "name": "Sounding Tangki",
+  "name": "E - TXT",
   "description": "Kalkulator volume dan tonase sounding tangki texturizing offline dengan tabel kalibrasi, density suhu, riwayat lokal, dan export CSV.",
   "requestFramePermissions": [],
   "majorCapabilities": [

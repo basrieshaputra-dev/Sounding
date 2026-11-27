@@ -1,13 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="navy_teal">#FF073D43</color>
-    <color name="forest_green">#FF477C55</color>
-    <color name="sage">#FFA8BDAF</color>
-    <color name="soft_grey">#FFDCE5DF</color>
-    <color name="dark_canvas">#FF061F22</color>
-    <color name="dark_card">#FF0B3032</color>
-    <color name="dark_text">#FFE8F0EB</color>
+    <color name="sage_primary">#FF059669</color>
+    <color name="sage_primary_deep">#FF0A2E28</color>
+    <color name="sage_highlight">#FFD1FAE5</color>
+    <color name="warm_sand">#FFF8FAF9</color>
+    <color name="warm_off_white">#FFFFFFFF</color>
+    <color name="soft_sand">#FFEFF4F2</color>
+    <color name="warm_border">#FFD0DDD8</color>
+    <color name="charcoal_canvas">#FF0B1412</color>
+    <color name="charcoal_card">#FF162622</color>
+    <color name="sage_mint">#FF10B981</color>
+    <color name="navy_teal">#FF0A2E28</color>
+    <color name="forest_green">#FF059669</color>
+    <color name="sage">#FF14B8A6</color>
+    <color name="soft_grey">#FFD0DDD8</color>
+    <color name="dark_canvas">#FF0B1412</color>
+    <color name="dark_card">#FF162622</color>
+    <color name="dark_text">#FFF1F7F5</color>
     <color name="oil_yellow">#FFFACC15</color>
+    <color name="amber_gold">#FFF59E0B</color>
+    <color name="emerald_fresh">#FF10B981</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 </resources>

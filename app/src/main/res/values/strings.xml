@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">Sounding Tangki</string>
-    <string name="app_header_title">Sounding Preblend &amp; Towertank</string>
+    <string name="app_name">E - TXT</string>
+    <string name="app_header_title">E - TXT</string>
     <string name="app_header_subtitle">FAC - SPECIALTY FATS - TEXTURIZING</string>
     <string name="app_header_credit">App By. Basri syaputra ID 11536</string>
 
@@ -20,7 +20,7 @@
     <string name="label_sounding">Sounding Level (cm)</string>
     <string name="placeholder_sounding">Contoh: 401 atau 729.7</string>
     <string name="label_temp">Suhu (°C)</string>
-    <string name="placeholder_temp">30</string>
+    <string name="placeholder_temp">cth: 50</string>
     <string name="tank_meta_format">Meja: %1$s cm • Ref: %2$s°C • Kap: %3$d Ton</string>
     <string name="tank_manual_meta">Mode Input Manual (kg) • Non-Kalibrasi</string>
     <string name="label_manual_kg">Input Manual Stok (kg)</string>
@@ -50,12 +50,14 @@
     <string name="gauge_table_label">Tabel %1$s</string>
     <string name="diagram_card_title">Diagram Tangki Silinder</string>
     <string name="diagram_max_height_format">Maks: %1$d cm</string>
-    <string name="diagram_label_high_level">High Level</string>
+    <string name="diagram_label_high_level">High Level (cm)</string>
     <string name="diagram_label_table_vol">Volume Tabel (L)</string>
     <string name="diagram_label_total_stock">Total Stock (kg)</string>
     <string name="diagram_label_fill_percent">Persentase Isi</string>
     <string name="diagram_label_temp">Suhu Minyak</string>
     <string name="diagram_ref_temp_format">Ref: %1$s°C</string>
+    <string name="diagram_label_density">Density</string>
+    <string name="diagram_density_unit">kg/L</string>
     <string name="diagram_overfill_badge">Melebihi Kapasitas</string>
     <string name="cd_tank_diagram">Diagram tangki silinder %1$s, volume tabel %2$s liter, total stok %3$s kilogram, suhu %4$s derajat Celsius</string>
     <string name="cd_edit_total_stock">Edit Total Stock dalam kilogram</string>
@@ -314,6 +316,7 @@
     <string name="auth_error_network">Periksa koneksi internet Anda.</string>
     <string name="auth_password_label">Password</string>
     <string name="auth_password_placeholder">Masukkan password</string>
+    <string name="auth_password_register_placeholder">Minimal 6 karakter</string>
     <string name="auth_password_login_helper">Masukkan password akun Anda (verifikasi email tidak diperlukan lagi)</string>
     <string name="auth_password_register_helper">Wajib diisi — minimal 6 karakter untuk login berikutnya</string>
     <string name="auth_password_error_required">Password wajib diisi (minimal 6 karakter).</string>
@@ -330,12 +333,21 @@
     <string name="auth_forgot_password_sent_desc">Tautan reset password telah dikirim ke %1$s. Silakan periksa kotak masuk atau folder Spam email Anda untuk mengatur password baru.</string>
     <string name="auth_forgot_password_user_not_found">Alamat email akun tersebut belum terdaftar di Firebase. Periksa kembali atau buat akun baru.</string>
     <string name="auth_forgot_password_failed">Gagal mengirim tautan reset password: %1$s</string>
-    <string name="auth_login_identifier_label">Username atau Alamat Email</string>
+    <string name="auth_login_identifier_label">Username atau Email</string>
     <string name="auth_login_identifier_placeholder">Contoh: bas atau nama@gmail.com</string>
     <string name="auth_login_identifier_helper">Ketik username huruf kecil tanpa spasi (atau alamat email untuk pemulihan / Lupa Password)</string>
     <string name="cd_show_password">Tampilkan password</string>
     <string name="cd_hide_password">Sembunyikan password</string>
     <string name="auth_logging_in">Memverifikasi akun…</string>
+    <string name="auth_remember_credentials_label">Ingat akun &amp; password di perangkat ini</string>
+    <string name="auth_saved_credentials_autofilled">Username &amp; password tersimpan otomatis terisi</string>
+    <string name="auth_forget_account_title">Hapus Kredensial Tersimpan?</string>
+    <string name="auth_forget_account_message">Akun \"%1$s\" dan password tersimpannya akan dihapus dari perangkat ini. Akun cloud Anda tetap aman dan bisa masuk kembali kapan saja.</string>
+    <string name="auth_forget_active_password_message">Password tersimpan untuk akun aktif \"%1$s\" akan dihapus dari perangkat ini. Sesi aktif Anda tetap berjalan.</string>
+    <string name="auth_forget_account_confirm">Hapus dari HP</string>
+    <string name="cd_forget_saved_account">Hapus kredensial tersimpan %1$s</string>
+    <string name="cd_saved_password_indicator">Password tersimpan di perangkat</string>
+    <string name="msg_saved_credentials_removed">Kredensial %1$s dihapus dari perangkat ini</string>
 
     <!-- Realtime Monitoring & Account/Date Filters -->
     <string name="realtime_stocks_title">Stok Tangki Terkini (Realtime)</string>
@@ -372,8 +384,8 @@
     <string name="username_login_title">Masuk Akun Operator</string>
     <string name="username_login_subtitle">Masukkan Nama Akun / Username (otomatis huruf kecil tanpa spasi). Tetap berjalan lancar saat OFFLINE • LOKAL.</string>
     <string name="username_saved_list_label">Akun Terverifikasi di Perangkat Ini</string>
-    <string name="username_input_label">Nama Akun / Username</string>
-    <string name="username_input_placeholder">Contoh: basri, arif, rizal</string>
+    <string name="username_input_label">Username</string>
+    <string name="username_input_placeholder">Contoh: basri, arif, yudi</string>
     <string name="username_input_helper">Huruf kecil tanpa spasi (otomatis dirapikan)</string>
     <string name="username_preview_label">Nama Akun Aktif</string>
     <string name="username_preview_empty">namaakun</string>
@@ -448,8 +460,8 @@
 
     <!-- Automatic App Update (GitHub Releases) -->
     <string name="update_notification_channel_name">Pembaruan Aplikasi</string>
-    <string name="update_notification_channel_desc">Notifikasi saat versi terbaru Sounding Tangki tersedia di GitHub Releases.</string>
-    <string name="update_notification_title">Update Tersedia: Sounding Tangki %1$s</string>
+    <string name="update_notification_channel_desc">Notifikasi saat versi terbaru E - TXT tersedia di GitHub Releases.</string>
+    <string name="update_notification_title">Update Tersedia: E - TXT %1$s</string>
     <string name="update_banner_title">Versi Baru %1$s Tersedia</string>
     <string name="update_banner_subtitle">Terpasang %1$s • Ketuk untuk melihat catatan rilis &amp; unduh APK</string>
     <string name="update_banner_action_view">Unduh</string>
@@ -476,4 +488,5 @@
     <string name="msg_update_found">Versi terbaru %1$s tersedia untuk diunduh.</string>
     <string name="msg_update_browser_failed">Tidak dapat membuka browser untuk mengunduh APK pada perangkat ini.</string>
     <string name="cd_dismiss_update_banner">Tutup notifikasi pembaruan</string>
+    <string name="cd_temp_preset_format">Pilih cepat suhu %1$d derajat Celcius</string>
 </resources>

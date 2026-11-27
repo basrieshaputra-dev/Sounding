@@ -477,6 +477,51 @@ class OperatorPreferences(context: Context) {
         }.getOrElse { loadSession() }
     }
 
+    /**
+     * Removes a saved verified account entry from this device's quick-select list and email backup.
+     * Cloud account data in Firebase remains untouched; if the account is not currently logged in,
+     * any stale active_account_name fallback pointing to it is also cleared.
+     */
+    fun removeVerifiedAccount(rawAccountName: String): OperatorSession {
+        return runCatching {
+            val clean = OperatorIdentityFormatter.sanitizeUsername(rawAccountName)
+            if (clean.isEmpty()) return loadSession()
+
+            val currentSession = loadSession()
+            val filteredVerified = loadVerifiedAccounts()
+                .filterNot { it.accountName.equals(clean, ignoreCase = true) }
+            val filteredNames = loadSavedAccountNames()
+                .filterNot { it.equals(clean, ignoreCase = true) }
+            val namesJson = JSONArray().apply {
+                filteredNames.forEach { put(it) }
+            }.toString()
+
+            val clearStaleActive = !currentSession.hasActiveSession &&
+                safeGetString(KEY_ACTIVE_ACCOUNT_NAME, "")
+                    .orEmpty()
+                    .equals(clean, ignoreCase = true)
+
+            safeEdit {
+                putString(KEY_SAVED_ACCOUNT_NAMES_JSON, namesJson)
+                putString(
+                    KEY_VERIFIED_ACCOUNTS_JSON,
+                    encodeSensitiveJson(serializeVerifiedAccounts(filteredVerified))
+                )
+                putString(
+                    KEY_ACCOUNT_EMAIL_BACKUP_JSON,
+                    serializeAccountEmailBackup(filteredVerified)
+                )
+                if (clearStaleActive) {
+                    remove(KEY_ACTIVE_ACCOUNT_NAME)
+                    remove(KEY_ACTIVE_OPERATOR_EMAIL)
+                }
+            }
+            loadSession()
+        }.onFailure { err ->
+            Log.w(TAG, "Failed removing verified account from device", err)
+        }.getOrElse { loadSession() }
+    }
+
     private fun serializeVerifiedAccounts(accounts: List<VerifiedOperatorAccount>): String {
         return JSONArray().apply {
             accounts.forEach { acc ->

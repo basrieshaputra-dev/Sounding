@@ -30,6 +30,7 @@ import com.example.data.local.OperatorSession
 import com.example.data.local.PasswordHashUtil
 import com.example.data.local.PendingEmailVerification
 import com.example.data.local.ProductPreferences
+import com.example.data.local.SavedCredentialsVault
 import com.example.data.local.SharedPreferencesLicenseStorage
 import com.example.data.local.ShiftDraftPreferences
 import com.example.data.local.SoundingLogEntity
@@ -108,7 +109,7 @@ private data class CalculatorInputState(
     val selectedTankIndex: Int = 0,
     val selectedProduct: String = "",
     val soundingInput: String = "",
-    val tempInput: String = "30",
+    val tempInput: String = "",
     val diagramStockKgInput: String? = null,
     val manualKgInput: String = "",
     val manualNoteInput: String = ""
@@ -151,7 +152,7 @@ data class SoundingUiState(
     val favoriteProducts: Set<String> = emptySet(),
     val selectedProduct: String = "",
     val soundingInput: String = "",
-    val tempInput: String = "30",
+    val tempInput: String = "",
     val diagramStockKgInput: String? = null,
     val manualKgInput: String = "",
     val manualNoteInput: String = "",
@@ -167,6 +168,7 @@ data class SoundingUiState(
     val activeOperatorEmail: String = "",
     val savedAccountNames: List<String> = emptyList(),
     val verifiedAccounts: List<VerifiedOperatorAccount> = emptyList(),
+    val savedCredentialUsernames: Set<String> = emptySet(),
     val pendingEmailVerification: PendingEmailVerification? = null,
     // Cloud & Realtime Monitoring state
     val isNetworkOnline: Boolean = false,
@@ -208,6 +210,7 @@ class SoundingViewModel(
     private val networkMonitor: NetworkConnectivityMonitor,
     private val productPreferences: ProductPreferences,
     private val operatorPreferences: OperatorPreferences,
+    private val savedCredentialsVault: SavedCredentialsVault,
     private val licenseManager: LicenseManager,
     private val shiftDraftPreferences: ShiftDraftPreferences
 ) : ViewModel() {
@@ -228,6 +231,9 @@ class SoundingViewModel(
 
     private val operatorSessionFlow = MutableStateFlow(
         runCatching { operatorPreferences.loadSession() }.getOrDefault(OperatorSession())
+    )
+    private val savedCredentialUsernamesFlow = MutableStateFlow(
+        runCatching { savedCredentialsVault.getSavedCredentialUsernames() }.getOrDefault(emptySet())
     )
     private val favoriteProductsFlow = MutableStateFlow<Set<String>>(
         runCatching { productPreferences.loadFavoriteProducts() }
@@ -306,7 +312,8 @@ class SoundingViewModel(
         val isDark: Boolean,
         val operator: String,
         val licenseState: LicenseState,
-        val draft: ShiftReportDraft
+        val draft: ShiftReportDraft,
+        val savedCredentialUsernames: Set<String>
     )
 
     private val prefsFlow = combine(
@@ -314,9 +321,11 @@ class SoundingViewModel(
         favoriteProductsFlow,
         darkThemeFlow,
         lastOperatorFlow,
-        combine(licenseStateFlow, draftFlow) { l, d -> l to d }
-    ) { opSession, favorites, isDark, operator, (license, draft) ->
-        PrefsSnapshot(opSession, favorites, isDark, operator, license, draft)
+        combine(licenseStateFlow, draftFlow, savedCredentialUsernamesFlow) { l, d, savedCreds ->
+            Triple(l, d, savedCreds)
+        }
+    ) { opSession, favorites, isDark, operator, (license, draft, savedCreds) ->
+        PrefsSnapshot(opSession, favorites, isDark, operator, license, draft, savedCreds)
     }
 
     // Auth-gated Firestore streams: NEVER query or listen when FirebaseAuth has no signed-in user
@@ -406,7 +415,7 @@ class SoundingViewModel(
         filterState
     ) { core, cloud, filters ->
         val (dataset, input, prefs, localLogs) = core
-        val (opSession, favorites, isDark, operator, license, rawDraft) = prefs
+        val (opSession, favorites, isDark, operator, license, rawDraft, savedCredUsernames) = prefs
         val activeAccount = opSession.activeAccountName
         val effectiveOperator = activeAccount.ifBlank { operator }
 
@@ -496,6 +505,7 @@ class SoundingViewModel(
                 activeOperatorEmail = opSession.activeOperatorEmail,
                 savedAccountNames = opSession.savedAccountNames,
                 verifiedAccounts = opSession.verifiedAccounts,
+                savedCredentialUsernames = savedCredUsernames,
                 pendingEmailVerification = opSession.pendingVerification,
                 isNetworkOnline = cloud.isNetworkOnline,
                 isCloudConnected = cloud.user.isConnected,
@@ -546,7 +556,9 @@ class SoundingViewModel(
                 else -> {
                     val soundingVal = CalibrationEngine.parseDecimalInput(input.soundingInput)
                     val tempVal = CalibrationEngine.parseDecimalInput(input.tempInput)
-                    if (soundingVal != null && tempVal != null && product.isNotEmpty()) {
+                        ?: tank.tRef.takeIf { it > 0.0 }
+                        ?: 30.0
+                    if (soundingVal != null && product.isNotEmpty()) {
                         CalibrationEngine.calculate(
                             dataset = dataset,
                             tank = tank,
@@ -587,6 +599,7 @@ class SoundingViewModel(
                 activeOperatorEmail = opSession.activeOperatorEmail,
                 savedAccountNames = opSession.savedAccountNames,
                 verifiedAccounts = opSession.verifiedAccounts,
+                savedCredentialUsernames = savedCredUsernames,
                 pendingEmailVerification = opSession.pendingVerification,
                 isNetworkOnline = cloud.isNetworkOnline,
                 isCloudConnected = cloud.user.isConnected,
@@ -629,6 +642,7 @@ class SoundingViewModel(
             activeOperatorEmail = operatorSessionFlow.value.activeOperatorEmail,
             savedAccountNames = operatorSessionFlow.value.savedAccountNames,
             verifiedAccounts = operatorSessionFlow.value.verifiedAccounts,
+            savedCredentialUsernames = savedCredentialUsernamesFlow.value,
             pendingEmailVerification = operatorSessionFlow.value.pendingVerification,
             isNetworkOnline = networkMonitor.isCurrentlyOnline(),
             isCloudConnected = runCatching { auth?.currentUser != null }.getOrDefault(false),
@@ -646,13 +660,11 @@ class SoundingViewModel(
             try {
                 val loaded = CalibrationEngine.loadFromAssets(appContext)
                 datasetFlow.value = loaded
-                val firstTank = loaded.tanks.firstOrNull()
                 inputState.update {
                     it.copy(
                         isLoaded = true,
                         selectedTankIndex = 0,
-                        selectedProduct = "",
-                        tempInput = if (firstTank?.tRef == 30.0) "30" else it.tempInput
+                        selectedProduct = ""
                     )
                 }
             } catch (e: CancellationException) {
@@ -907,6 +919,53 @@ class SoundingViewModel(
         }
     }
 
+    fun getSavedPasswordForAccount(accountName: String): String? {
+        val decrypted = runCatching { savedCredentialsVault.getSavedPassword(accountName) }.getOrNull()
+        val refreshed = runCatching { savedCredentialsVault.getSavedCredentialUsernames() }
+            .getOrDefault(savedCredentialUsernamesFlow.value)
+        if (refreshed != savedCredentialUsernamesFlow.value) {
+            savedCredentialUsernamesFlow.value = refreshed
+        }
+        return decrypted
+    }
+
+    /**
+     * Removes saved encrypted password for [accountName] on this device.
+     * If [accountName] is not the currently active logged-in session, also removes it from
+     * this device's quick-select verified accounts list (Firebase cloud account stays intact).
+     */
+    fun forgetSavedAccountCredentials(accountName: String) {
+        val clean = OperatorIdentityFormatter.sanitizeUsername(accountName)
+        if (clean.isEmpty()) return
+        runCatching { savedCredentialsVault.removePassword(clean) }
+        val currentSession = operatorSessionFlow.value
+        val isActiveLoggedInAccount = currentSession.hasActiveSession &&
+            currentSession.activeAccountName.equals(clean, ignoreCase = true)
+        if (!isActiveLoggedInAccount) {
+            operatorSessionFlow.value = operatorPreferences.removeVerifiedAccount(clean)
+        }
+        savedCredentialUsernamesFlow.value = runCatching {
+            savedCredentialsVault.getSavedCredentialUsernames()
+        }.getOrDefault(emptySet())
+    }
+
+    private fun applyRememberCredentialsChoice(
+        accountName: String,
+        rawPassword: String,
+        rememberCredentials: Boolean
+    ) {
+        val clean = OperatorIdentityFormatter.sanitizeUsername(accountName)
+        if (clean.isEmpty()) return
+        if (rememberCredentials && rawPassword.isNotEmpty()) {
+            runCatching { savedCredentialsVault.savePassword(clean, rawPassword) }
+        } else {
+            runCatching { savedCredentialsVault.removePassword(clean) }
+        }
+        savedCredentialUsernamesFlow.value = runCatching {
+            savedCredentialsVault.getSavedCredentialUsernames()
+        }.getOrDefault(emptySet())
+    }
+
     /**
      * Authenticates a verified operator using Username (or direct Email) + Password:
      * 1. Checks local SharedPreferences first so OFFLINE • LOKAL login succeeds immediately.
@@ -918,7 +977,8 @@ class SoundingViewModel(
      */
     suspend fun authenticateWithUsernameAndPassword(
         rawIdentifier: String,
-        rawPassword: String
+        rawPassword: String,
+        rememberCredentials: Boolean = true
     ): UsernamePasswordLoginResult {
         val trimmedInput = rawIdentifier.trim()
         if (trimmedInput.isEmpty()) return UsernamePasswordLoginResult.EmptyUsername
@@ -928,7 +988,8 @@ class SoundingViewModel(
         if (isEmailInput) {
             return authenticateByEmailAndPassword(
                 cleanEmail = EmailVerificationAuthHelper.normalizeEmail(trimmedInput),
-                rawPassword = rawPassword
+                rawPassword = rawPassword,
+                rememberCredentials = rememberCredentials
             )
         }
 
@@ -1033,6 +1094,11 @@ class SoundingViewModel(
 
         // 4. Immediately persist active login session (isLoggedIn = true) locally for OFFLINE • LOKAL safety
         loginOrSwitchAccount(clean)
+        applyRememberCredentialsChoice(
+            accountName = clean,
+            rawPassword = rawPassword,
+            rememberCredentials = rememberCredentials
+        )
 
         // 5. Non-blocking background sync with Firebase Auth & Firestore users/{username} when online
         if (networkMonitor.isCurrentlyOnline()) {
@@ -1084,7 +1150,8 @@ class SoundingViewModel(
      */
     private suspend fun authenticateByEmailAndPassword(
         cleanEmail: String,
-        rawPassword: String
+        rawPassword: String,
+        rememberCredentials: Boolean = true
     ): UsernamePasswordLoginResult {
         val localMatch = operatorSessionFlow.value.findVerifiedAccountByEmail(cleanEmail)
         if (localMatch != null && localMatch.passwordHash.isNotBlank()) {
@@ -1093,6 +1160,11 @@ class SoundingViewModel(
             }
             if (localOk) {
                 loginOrSwitchAccount(localMatch.accountName)
+                applyRememberCredentialsChoice(
+                    accountName = localMatch.accountName,
+                    rawPassword = rawPassword,
+                    rememberCredentials = rememberCredentials
+                )
                 if (networkMonitor.isCurrentlyOnline()) {
                     viewModelScope.launch(Dispatchers.IO + safeCoroutineHandler) {
                         val currentEmail = runCatching { auth?.currentUser?.email.orEmpty() }.getOrDefault("")
@@ -1159,6 +1231,11 @@ class SoundingViewModel(
                 operatorSessionFlow.value = updated
                 lastOperatorFlow.value = updated.activeAccountName
                 productPreferences.saveLastOperator(updated.activeAccountName)
+                applyRememberCredentialsChoice(
+                    accountName = resolvedUsername,
+                    rawPassword = rawPassword,
+                    rememberCredentials = rememberCredentials
+                )
 
                 viewModelScope.launch(Dispatchers.IO + safeCoroutineHandler) {
                     cloudRepository.upsertVerifiedUserProfile(
@@ -1260,7 +1337,8 @@ class SoundingViewModel(
     fun savePendingEmailVerification(
         rawUsername: String,
         email: String,
-        passwordHash: String = ""
+        passwordHash: String = "",
+        rawPasswordToRemember: String? = null
     ) {
         val updated = operatorPreferences.savePendingVerification(
             rawUsername = rawUsername,
@@ -1268,17 +1346,24 @@ class SoundingViewModel(
             passwordHash = passwordHash
         )
         operatorSessionFlow.value = updated
+        if (!rawPasswordToRemember.isNullOrEmpty()) {
+            runCatching { savedCredentialsVault.savePendingPassword(rawUsername, rawPasswordToRemember) }
+        } else {
+            runCatching { savedCredentialsVault.clearPendingPassword() }
+        }
     }
 
     fun clearPendingEmailVerification() {
         val updated = operatorPreferences.clearPendingVerification()
         operatorSessionFlow.value = updated
+        runCatching { savedCredentialsVault.clearPendingPassword() }
     }
 
     fun completeVerifiedAccountRegistration(
         rawUsername: String,
         email: String,
-        passwordHash: String = ""
+        passwordHash: String = "",
+        rawPasswordToRemember: String? = null
     ): String? {
         val clean = OperatorIdentityFormatter.sanitizeUsername(rawUsername)
         if (clean.isEmpty()) return null
@@ -1294,6 +1379,18 @@ class SoundingViewModel(
         lastOperatorFlow.value = updatedSession.activeAccountName
         productPreferences.saveLastOperator(updatedSession.activeAccountName)
         cloudErrorFlow.value = null
+
+        if (!rawPasswordToRemember.isNullOrEmpty()) {
+            runCatching {
+                savedCredentialsVault.savePassword(clean, rawPasswordToRemember)
+                savedCredentialsVault.clearPendingPassword()
+            }
+        } else {
+            runCatching { savedCredentialsVault.promotePendingPassword(clean) }
+        }
+        savedCredentialUsernamesFlow.value = runCatching {
+            savedCredentialsVault.getSavedCredentialUsernames()
+        }.getOrDefault(emptySet())
 
         val effectiveHash = updatedSession.findVerifiedAccount(clean)?.passwordHash ?: passwordHash
 
@@ -1681,12 +1778,11 @@ class SoundingViewModel(
 
     fun selectTank(index: Int) {
         val dataset = datasetFlow.value ?: return
-        val tank = dataset.tanks.getOrNull(index) ?: return
+        dataset.tanks.getOrNull(index) ?: return
         inputState.update { current ->
-            val nextTemp = if (!tank.isManualKg && tank.tRef == 30.0) "30" else current.tempInput
             current.copy(
                 selectedTankIndex = index,
-                tempInput = nextTemp,
+                tempInput = "",
                 diagramStockKgInput = null
             )
         }
@@ -1744,11 +1840,12 @@ class SoundingViewModel(
             val safeIndex = current.selectedTankIndex.coerceIn(0, (dataset.tanks.size - 1).coerceAtLeast(0))
             val tank = dataset.tanks.getOrNull(safeIndex)
             val tempVal = CalibrationEngine.parseDecimalInput(current.tempInput)
+                ?: tank?.tRef?.takeIf { it > 0.0 }
+                ?: 30.0
             val computedSounding = if (
                 tank != null &&
                 !tank.isManualKg &&
-                current.selectedProduct.isNotEmpty() &&
-                tempVal != null
+                current.selectedProduct.isNotEmpty()
             ) {
                 CalibrationEngine.calculateSoundingFromStockKg(
                     dataset = dataset,
@@ -1783,14 +1880,13 @@ class SoundingViewModel(
     }
 
     fun resetSoundingInput() {
-        val tank = uiState.value.selectedTank
         inputState.update {
             it.copy(
                 soundingInput = "",
                 diagramStockKgInput = null,
                 manualKgInput = "",
                 manualNoteInput = "",
-                tempInput = if (tank?.tRef == 30.0) "30" else it.tempInput
+                tempInput = ""
             )
         }
     }
@@ -1934,6 +2030,7 @@ class SoundingViewModel(
                         networkMonitor = NetworkConnectivityMonitor(ctx),
                         productPreferences = ProductPreferences(ctx),
                         operatorPreferences = OperatorPreferences(ctx),
+                        savedCredentialsVault = SavedCredentialsVault(ctx),
                         licenseManager = LicenseManager(SharedPreferencesLicenseStorage(ctx)),
                         shiftDraftPreferences = ShiftDraftPreferences(ctx)
                     ) as T

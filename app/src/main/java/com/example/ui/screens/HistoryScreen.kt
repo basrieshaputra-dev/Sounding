@@ -73,8 +73,6 @@ import com.example.data.local.SoundingLogEntity
 import com.example.ui.DateFilterOption
 import com.example.ui.FILTER_ALL
 import com.example.ui.SoundingUiState
-import com.example.ui.theme.BrandDeepTeal
-import com.example.ui.theme.BrandLeafGreen
 import com.example.ui.theme.MonoTypography
 import com.example.ui.theme.SoundingThemeExtras
 import com.example.util.SoundingFormatters
@@ -132,10 +130,10 @@ fun HistoryScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("history_summary_card"),
-                    shape = MaterialTheme.shapes.large,
+                    shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     border = BorderStroke(1.dp, extras.cardBorder),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = if (extras.isDark) 0.dp else 2.dp)
                 ) {
                     Column(
                         modifier = Modifier
@@ -192,11 +190,12 @@ fun HistoryScreen(
                             onClick = onOpenExportJpg,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 50.dp)
+                                .heightIn(min = 52.dp)
                                 .testTag("export_jpg_button"),
-                            shape = MaterialTheme.shapes.medium,
+                            shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
+                                containerColor = extras.sagePrimary,
+                                contentColor = extras.onSagePrimary
                             )
                         ) {
                             Icon(
@@ -207,7 +206,7 @@ fun HistoryScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = stringResource(R.string.action_export_jpg),
-                                style = MaterialTheme.typography.labelLarge,
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -218,12 +217,12 @@ fun HistoryScreen(
                             onClick = onExportCsv,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 48.dp)
+                                .heightIn(min = 50.dp)
                                 .testTag("export_csv_button"),
-                            shape = MaterialTheme.shapes.medium,
-                            border = BorderStroke(1.dp, extras.interactiveAccent),
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.dp, extras.sagePrimary.copy(alpha = 0.55f)),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = extras.interactiveAccent
+                                contentColor = extras.sagePrimary
                             )
                         ) {
                             Icon(
@@ -234,7 +233,7 @@ fun HistoryScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = stringResource(R.string.action_export_csv),
-                                style = MaterialTheme.typography.labelMedium
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
                             )
                         }
                     }
@@ -249,9 +248,10 @@ fun HistoryScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("empty_history_card"),
-                        shape = MaterialTheme.shapes.large,
+                        shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, extras.cardBorder)
+                        border = BorderStroke(1.dp, extras.cardBorder),
+                        elevation = CardDefaults.cardElevation(defaultElevation = if (extras.isDark) 0.dp else 2.dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -354,10 +354,10 @@ private fun RealtimeTankStocksCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("realtime_tank_stocks_card"),
-        shape = MaterialTheme.shapes.large,
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, extras.cardBorder),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (extras.isDark) 0.dp else 2.dp)
     ) {
         Column(
             modifier = Modifier
@@ -397,14 +397,10 @@ private fun RealtimeTankStocksCard(
 
                 Surface(
                     shape = RoundedCornerShape(999.dp),
-                    color = if (isOnlineRealtime) extras.leafContainer else extras.elevatedSurface,
-                    border = BorderStroke(
-                        1.dp,
-                        if (isOnlineRealtime) extras.leafAccent else extras.cardBorder
-                    )
+                    color = if (isOnlineRealtime) extras.sageContainer else extras.innerContainer
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
@@ -413,13 +409,13 @@ private fun RealtimeTankStocksCard(
                                 .size(7.dp)
                                 .clip(CircleShape)
                                 .background(
-                                    if (isOnlineRealtime) BrandLeafGreen else Color(0xFFD97706)
+                                    if (isOnlineRealtime) extras.emeraldAccent else extras.amberAccent
                                 )
                         )
                         Text(
                             text = "${stocks.size} Tangki",
                             style = MonoTypography.badge,
-                            color = if (isOnlineRealtime) extras.onLeafContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (isOnlineRealtime) extras.onSageContainer else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -455,8 +451,8 @@ private fun RealtimeTankStocksCard(
                             modifier = Modifier
                                 .width(172.dp)
                                 .testTag("realtime_stock_${stock.tankId}"),
-                            shape = MaterialTheme.shapes.medium,
-                            color = extras.elevatedSurface,
+                            shape = RoundedCornerShape(16.dp),
+                            color = extras.innerContainer,
                             border = BorderStroke(1.dp, extras.cardBorder)
                         ) {
                             Column(
@@ -469,14 +465,14 @@ private fun RealtimeTankStocksCard(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = extras.executiveActionSurface
+                                        shape = RoundedCornerShape(999.dp),
+                                        color = extras.sagePrimary
                                     ) {
                                         Text(
                                             text = stock.tankId,
                                             style = MonoTypography.badge.copy(fontWeight = FontWeight.Bold),
-                                            color = Color.White,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            color = extras.onSagePrimary,
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                         )
                                     }
                                     if (timeText.isNotEmpty()) {
@@ -548,10 +544,10 @@ private fun HistoryFilterCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("history_filter_card"),
-        shape = MaterialTheme.shapes.large,
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, extras.cardBorder),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (extras.isDark) 0.dp else 2.dp)
     ) {
         Column(
             modifier = Modifier
@@ -641,18 +637,13 @@ private fun FilterPillChip(
 ) {
     val extras = SoundingThemeExtras.colors
     val containerColor = when {
-        selected && usePrimaryFill -> extras.executiveActionSurface
-        selected -> extras.leafContainer
-        else -> extras.elevatedSurface
-    }
-    val borderColor = when {
-        selected && usePrimaryFill -> extras.executiveActionSurface
-        selected -> extras.leafAccent
-        else -> extras.cardBorder
+        selected && usePrimaryFill -> extras.sagePrimary
+        selected -> extras.sageContainer
+        else -> extras.innerContainer
     }
     val contentColor = when {
-        selected && usePrimaryFill -> Color.White
-        selected -> extras.onLeafContainer
+        selected && usePrimaryFill -> extras.onSagePrimary
+        selected -> extras.onSageContainer
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
@@ -663,10 +654,7 @@ private fun FilterPillChip(
             .testTag(testTag),
         shape = RoundedCornerShape(999.dp),
         color = containerColor,
-        border = BorderStroke(
-            width = if (selected) 1.5.dp else 1.dp,
-            color = borderColor
-        )
+        border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
         Box(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
@@ -700,10 +688,10 @@ private fun SoundingLogCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("log_item_card_${record.stableKey}"),
-        shape = MaterialTheme.shapes.large,
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, extras.cardBorder),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (extras.isDark) 0.dp else 2.dp)
     ) {
         Column(
             modifier = Modifier
@@ -722,14 +710,14 @@ private fun SoundingLogCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = extras.leafContainer
+                        shape = RoundedCornerShape(999.dp),
+                        color = extras.sagePrimary
                     ) {
                         Text(
                             text = log.tankId,
                             style = MonoTypography.detailValue,
-                            color = extras.onLeafContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            color = extras.onSagePrimary,
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
                         )
                     }
                     Text(

@@ -73,16 +73,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.example.R
+import com.example.data.CalibrationEngine
 import com.example.data.model.SoundingCalculation
 import com.example.ui.SoundingUiState
 import com.example.ui.components.ProductPickerBottomSheet
 import com.example.ui.components.TankPickerBottomSheet
 import com.example.ui.components.VerticalCylinderTankDiagram
 import com.example.ui.theme.MonoTypography
-import com.example.ui.theme.SaveGradientGreen
 import com.example.ui.theme.SoundingThemeExtras
 import com.example.util.SoundingFormatters
+import kotlin.math.abs
 
 @Composable
 fun CalculatorScreen(
@@ -120,13 +123,13 @@ fun CalculatorScreen(
                 .widthIn(max = 640.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Input Parameters Card (Neo-Industrial 20dp Frosted Glass)
+            // Input Parameters Card (Warm Off-White / Charcoal surface with soft depth)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = extras.glassCardSurface),
-                border = BorderStroke(1.dp, extras.glassBorder),
-                elevation = CardDefaults.cardElevation(defaultElevation = if (extras.isDark) 0.dp else 1.dp)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, extras.cardBorder),
+                elevation = CardDefaults.cardElevation(defaultElevation = if (extras.isDark) 0.dp else 2.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -134,6 +137,9 @@ fun CalculatorScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    val parsedCurrentTemp = remember(uiState.tempInput) {
+                        CalibrationEngine.parseDecimalInput(uiState.tempInput)
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -144,9 +150,12 @@ fun CalculatorScreen(
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
+                        val isTempModified = !uiState.isManualTankSelected &&
+                            uiState.tempInput.isNotEmpty()
                         val hasAnyInput = uiState.soundingInput.isNotEmpty() ||
                             uiState.manualKgInput.isNotEmpty() ||
-                            uiState.manualNoteInput.isNotEmpty()
+                            uiState.manualNoteInput.isNotEmpty() ||
+                            isTempModified
                         if (hasAnyInput) {
                             TextButton(
                                 onClick = {
@@ -178,11 +187,11 @@ fun CalculatorScreen(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 56.dp)
+                                .heightIn(min = 58.dp)
                                 .clickable { showTankPicker = true }
                                 .testTag("tank_selector_button"),
-                            shape = MaterialTheme.shapes.medium,
-                            color = extras.elevatedSurface,
+                            shape = RoundedCornerShape(16.dp),
+                            color = extras.innerContainer,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                         ) {
                             Row(
@@ -251,11 +260,11 @@ fun CalculatorScreen(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 52.dp)
+                                .heightIn(min = 54.dp)
                                 .clickable { showProductPicker = true }
                                 .testTag("product_selector_button"),
-                            shape = MaterialTheme.shapes.medium,
-                            color = extras.elevatedSurface,
+                            shape = RoundedCornerShape(16.dp),
+                            color = extras.innerContainer,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                         ) {
                             Row(
@@ -298,11 +307,15 @@ fun CalculatorScreen(
                     }
 
                     val fieldColors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = extras.leafAccent,
-                        focusedLabelColor = extras.leafAccentReadable,
-                        cursorColor = extras.leafAccentReadable,
-                        focusedContainerColor = extras.elevatedSurface,
-                        unfocusedContainerColor = extras.elevatedSurface
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedBorderColor = extras.emeraldAccent,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedLabelColor = extras.emeraldAccent,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        cursorColor = extras.emeraldAccent,
+                        focusedContainerColor = extras.innerContainer,
+                        unfocusedContainerColor = extras.innerContainer
                     )
 
                     if (uiState.isManualTankSelected) {
@@ -403,96 +416,164 @@ fun CalculatorScreen(
                             shape = MaterialTheme.shapes.medium
                         )
                     } else {
-                        // Sounding Level & Temp side-by-side inputs
-                        Row(
+                        // Sounding Level & Temp side-by-side inputs + Quick-Select Temp Chips
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.Top
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            OutlinedTextField(
-                                value = uiState.soundingInput,
-                                onValueChange = onSoundingChanged,
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                OutlinedTextField(
+                                    value = uiState.soundingInput,
+                                    onValueChange = onSoundingChanged,
+                                    modifier = Modifier
+                                        .weight(1.4f)
+                                        .testTag("sounding_input"),
+                                    colors = fieldColors,
+                                    label = {
+                                        Text(
+                                            text = stringResource(R.string.label_sounding),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    placeholder = {
+                                        Text(
+                                            text = stringResource(R.string.placeholder_sounding),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    suffix = {
+                                        Text(
+                                            text = "cm",
+                                            style = MonoTypography.badge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    trailingIcon = if (uiState.soundingInput.isNotEmpty()) {
+                                        {
+                                            IconButton(
+                                                onClick = { onSoundingChanged("") },
+                                                modifier = Modifier.testTag("clear_sounding_button")
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = stringResource(R.string.cd_clear_search),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    } else null,
+                                    textStyle = MonoTypography.subMetric,
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Decimal,
+                                        imeAction = ImeAction.Next
+                                    ),
+                                    shape = MaterialTheme.shapes.medium
+                                )
+
+                                OutlinedTextField(
+                                    value = uiState.tempInput,
+                                    onValueChange = onTempChanged,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("temp_input"),
+                                    colors = fieldColors,
+                                    label = {
+                                        Text(
+                                            text = stringResource(R.string.label_temp),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    placeholder = { Text(stringResource(R.string.placeholder_temp)) },
+                                    suffix = {
+                                        Text(
+                                            text = "°C",
+                                            style = MonoTypography.badge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    textStyle = MonoTypography.subMetric,
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Decimal,
+                                        imeAction = ImeAction.Done
+                                    ),
+                                    keyboardActions = KeyboardActions(
+                                        onDone = { focusManager.clearFocus() }
+                                    ),
+                                    shape = MaterialTheme.shapes.medium
+                                )
+                            }
+
+                            // Quick-select temperature preset chips (45°, 50°, 55°, 60°) aligned to bottom-right
+                            Row(
                                 modifier = Modifier
-                                    .weight(1.4f)
-                                    .testTag("sounding_input"),
-                                colors = fieldColors,
-                                label = {
-                                    Text(
-                                        text = stringResource(R.string.label_sounding),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                },
-                                placeholder = {
-                                    Text(
-                                        text = stringResource(R.string.placeholder_sounding),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                },
-                                suffix = {
-                                    Text(
-                                        text = "cm",
-                                        style = MonoTypography.badge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                },
-                                trailingIcon = if (uiState.soundingInput.isNotEmpty()) {
-                                    {
-                                        IconButton(
-                                            onClick = { onSoundingChanged("") },
-                                            modifier = Modifier.testTag("clear_sounding_button")
+                                    .fillMaxWidth()
+                                    .testTag("temp_presets_row"),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val tempPresets = listOf(45, 50, 55, 60)
+                                tempPresets.forEach { preset ->
+                                    val isSelected = parsedCurrentTemp != null &&
+                                        abs(parsedCurrentTemp - preset.toDouble()) < 0.001
+                                    val presetDescription = stringResource(R.string.cd_temp_preset_format, preset)
+                                    Surface(
+                                        modifier = Modifier
+                                            .widthIn(min = 48.dp)
+                                            .heightIn(min = 38.dp)
+                                            .clip(RoundedCornerShape(999.dp))
+                                            .clickable {
+                                                focusManager.clearFocus()
+                                                onTempChanged(preset.toString())
+                                            }
+                                            .semantics { contentDescription = presetDescription }
+                                            .testTag("temp_preset_$preset"),
+                                        shape = RoundedCornerShape(999.dp),
+                                        color = if (isSelected) {
+                                            extras.amberAccent
+                                        } else if (extras.isDark) {
+                                            extras.innerContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.surface
+                                        },
+                                        border = BorderStroke(
+                                            width = if (isSelected) 1.5.dp else 1.dp,
+                                            color = if (isSelected) {
+                                                extras.amberAccent
+                                            } else {
+                                                MaterialTheme.colorScheme.outline
+                                            }
+                                        )
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Close,
-                                                contentDescription = stringResource(R.string.cd_clear_search),
-                                                modifier = Modifier.size(18.dp)
+                                            Text(
+                                                text = "$preset°",
+                                                style = MonoTypography.badge.copy(
+                                                    fontSize = 12.sp,
+                                                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold
+                                                ),
+                                                color = if (isSelected) {
+                                                    extras.onAmberAccent
+                                                } else {
+                                                    MaterialTheme.colorScheme.onSurface
+                                                },
+                                                maxLines = 1
                                             )
                                         }
                                     }
-                                } else null,
-                                textStyle = MonoTypography.subMetric,
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Decimal,
-                                    imeAction = ImeAction.Next
-                                ),
-                                shape = MaterialTheme.shapes.medium
-                            )
-
-                            OutlinedTextField(
-                                value = uiState.tempInput,
-                                onValueChange = onTempChanged,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("temp_input"),
-                                colors = fieldColors,
-                                label = {
-                                    Text(
-                                        text = stringResource(R.string.label_temp),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                },
-                                placeholder = { Text(stringResource(R.string.placeholder_temp)) },
-                                suffix = {
-                                    Text(
-                                        text = "°C",
-                                        style = MonoTypography.badge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                },
-                                textStyle = MonoTypography.subMetric,
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Decimal,
-                                    imeAction = ImeAction.Done
-                                ),
-                                keyboardActions = KeyboardActions(
-                                    onDone = { focusManager.clearFocus() }
-                                ),
-                                shape = MaterialTheme.shapes.medium
-                            )
+                                }
+                            }
                         }
                     }
                 }
@@ -556,10 +637,7 @@ fun CalculatorScreen(
 
                         CalculationResultCard(calc = calc)
 
-                        val savePillShape = RoundedCornerShape(999.dp)
-                        val saveGradientBrush = Brush.horizontalGradient(
-                            colors = listOf(SaveGradientGreen, extras.limeAccent, extras.primaryCtaEnd)
-                        )
+                        val ctaShape = RoundedCornerShape(16.dp)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -573,17 +651,15 @@ fun CalculatorScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .heightIn(min = 52.dp)
-                                    .clip(savePillShape)
-                                    .background(saveGradientBrush, savePillShape)
                                     .testTag("save_history_button"),
-                                shape = savePillShape,
+                                shape = ctaShape,
                                 contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.Transparent,
-                                    contentColor = extras.onLimeButton
+                                    containerColor = extras.sagePrimary,
+                                    contentColor = extras.onSagePrimary
                                 ),
                                 elevation = ButtonDefaults.buttonElevation(
-                                    defaultElevation = 0.dp,
+                                    defaultElevation = if (extras.isDark) 0.dp else 2.dp,
                                     pressedElevation = 0.dp
                                 )
                             ) {
@@ -608,11 +684,11 @@ fun CalculatorScreen(
                                 modifier = Modifier
                                     .heightIn(min = 52.dp)
                                     .testTag("copy_wa_button"),
-                                shape = savePillShape,
-                                border = BorderStroke(1.2.dp, extras.interactiveAccent),
+                                shape = ctaShape,
+                                border = BorderStroke(1.dp, extras.sagePrimary.copy(alpha = 0.55f)),
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = extras.glassCardSurface,
-                                    contentColor = extras.interactiveAccent
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    contentColor = extras.sagePrimary
                                 ),
                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
                             ) {
@@ -630,7 +706,7 @@ fun CalculatorScreen(
 
                             FilledTonalIconButton(
                                 onClick = { onShareWhatsApp(calc) },
-                                shape = CircleShape,
+                                shape = ctaShape,
                                 modifier = Modifier
                                     .size(52.dp)
                                     .testTag("share_wa_button")
@@ -690,7 +766,8 @@ private fun CalculationResultCard(calc: SoundingCalculation) {
             .testTag("result_card"),
         shape = RoundedCornerShape(20.dp),
         color = extras.resultSurface,
-        border = BorderStroke(1.2.dp, extras.resultBorder)
+        border = BorderStroke(1.dp, extras.resultBorder),
+        shadowElevation = if (extras.isDark) 0.dp else 2.dp
     ) {
         Column(
             modifier = Modifier
@@ -832,7 +909,7 @@ private fun MetricBox(
     }
     Surface(
         modifier = modifier,
-        shape = MaterialTheme.shapes.medium,
+        shape = RoundedCornerShape(16.dp),
         color = extras.metricCardSurface,
         border = BorderStroke(1.dp, extras.metricCardBorder)
     ) {
@@ -903,8 +980,9 @@ private fun EmptyCalculationCard(
             .fillMaxWidth()
             .testTag("empty_calculation_hint"),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = extras.glassCardSurface),
-        border = BorderStroke(1.dp, extras.glassBorder)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, extras.cardBorder),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (extras.isDark) 0.dp else 2.dp)
     ) {
         Column(
             modifier = Modifier

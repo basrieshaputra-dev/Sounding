@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import android.content.Context
+import android.os.Build
+import android.view.autofill.AutofillManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -21,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -28,10 +32,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Badge
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CloudDone
-import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockReset
 import androidx.compose.material.icons.filled.Login
@@ -43,11 +46,13 @@ import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -67,15 +72,28 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.AutofillNode
+import androidx.compose.ui.autofill.AutofillType
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalAutofill
+import androidx.compose.ui.platform.LocalAutofillTree
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -117,25 +135,74 @@ private fun sanitizeLoginIdentifierInput(raw: String): String {
     return raw.trim().lowercase(Locale.US).replace(LOGIN_WHITESPACE_REGEX, "").take(254)
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
+private fun Modifier.androidAutofill(
+    autofillTypes: List<AutofillType>,
+    onFill: (String) -> Unit
+): Modifier = composed {
+    if (autofillTypes.isEmpty()) return@composed this
+    val autofill = LocalAutofill.current
+    val autofillTree = LocalAutofillTree.current
+    val currentOnFill by rememberUpdatedState(onFill)
+    val autofillNode = remember(autofillTypes) {
+        AutofillNode(
+            autofillTypes = autofillTypes,
+            onFill = { value -> currentOnFill(value) }
+        )
+    }
+    DisposableEffect(autofillTree, autofillNode) {
+        autofillTree += autofillNode
+        onDispose {
+            autofillTree.children.remove(autofillNode.id)
+        }
+    }
+    this
+        .onGloballyPositioned { coordinates ->
+            autofillNode.boundingBox = coordinates.boundsInWindow()
+        }
+        .onFocusChanged { focusState ->
+            autofill?.run {
+                if (focusState.isFocused) {
+                    requestAutofillForNode(autofillNode)
+                } else {
+                    cancelAutofillForNode(autofillNode)
+                }
+            }
+        }
+}
+
+private fun commitAndroidAutofill(context: Context) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        runCatching {
+            context.getSystemService(AutofillManager::class.java)?.commit()
+        }
+    }
+}
+
 private enum class AuthScreenTab {
     LOGIN_VERIFIED,
     REGISTER_EMAIL
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun OperatorAuthScreen(
     verifiedAccounts: List<VerifiedOperatorAccount>,
+    savedCredentialUsernames: Set<String> = emptySet(),
     pendingVerification: PendingEmailVerification?,
     initialAccountName: String,
     initialEmail: String = "",
     forceRegisterTab: Boolean = false,
     allowCancelBack: Boolean = false,
+    @Suppress("UNUSED_PARAMETER")
     isOnlineRealtime: Boolean = false,
-    onLoginWithUsernamePassword: suspend (rawUsername: String, rawPassword: String) -> UsernamePasswordLoginResult,
+    onLoadSavedPassword: (accountName: String) -> String? = { null },
+    onForgetSavedAccount: (accountName: String) -> Unit = {},
+    onLoginWithUsernamePassword: suspend (rawUsername: String, rawPassword: String, rememberCredentials: Boolean) -> UsernamePasswordLoginResult,
     onResolvePasswordResetEmail: suspend (rawInput: String) -> ResolveResetEmailResult,
-    onSavePendingVerification: (rawUsername: String, email: String, passwordHash: String) -> Unit,
+    onSavePendingVerification: (rawUsername: String, email: String, passwordHash: String, rawPasswordToRemember: String?) -> Unit,
     onClearPendingVerification: () -> Unit,
-    onAccountEmailVerified: (rawUsername: String, email: String, passwordHash: String) -> Unit,
+    onAccountEmailVerified: (rawUsername: String, email: String, passwordHash: String, rawPasswordToRemember: String?) -> Unit,
     onCancelBack: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -174,6 +241,10 @@ fun OperatorAuthScreen(
     }
     var passwordInput by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
+    var rememberCredentials by remember { mutableStateOf(true) }
+    var isAutoFilledPassword by remember { mutableStateOf(false) }
+    var forgetCandidateAccount by remember { mutableStateOf<String?>(null) }
+    var savedCredNotice by remember { mutableStateOf<String?>(null) }
 
     var usernameError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
@@ -204,6 +275,21 @@ fun OperatorAuthScreen(
     }
 
     val isAwaitingVerification = pendingVerification != null
+
+    // Auto-fill remembered password if initial pre-filled account has saved credentials on Login tab
+    LaunchedEffect(initialCleanAccount, activeTab) {
+        if (activeTab == AuthScreenTab.LOGIN_VERIFIED &&
+            initialCleanAccount.isNotBlank() &&
+            passwordInput.isEmpty() &&
+            savedCredentialUsernames.any { it.equals(initialCleanAccount, ignoreCase = true) }
+        ) {
+            val savedPwd = onLoadSavedPassword(initialCleanAccount)
+            if (!savedPwd.isNullOrEmpty()) {
+                passwordInput = savedPwd
+                isAutoFilledPassword = true
+            }
+        }
+    }
 
     LaunchedEffect(resendCooldownSec) {
         if (resendCooldownSec > 0) {
@@ -236,10 +322,12 @@ fun OperatorAuthScreen(
                 ) {
                     is CheckEmailVerificationOutcome.Verified -> {
                         statusBannerError = null
+                        commitAndroidAutofill(context)
                         onAccountEmailVerified(
                             pending.accountName,
                             outcome.email,
-                            pending.passwordHash
+                            pending.passwordHash,
+                            null
                         )
                     }
                     is CheckEmailVerificationOutcome.NotYetVerified -> {
@@ -306,8 +394,15 @@ fun OperatorAuthScreen(
         isLoggingIn = true
         scope.launch {
             try {
-                when (val result = onLoginWithUsernamePassword(liveIdentifier, passwordInput)) {
+                when (
+                    val result = onLoginWithUsernamePassword(
+                        liveIdentifier,
+                        passwordInput,
+                        rememberCredentials
+                    )
+                ) {
                     is UsernamePasswordLoginResult.Success -> {
+                        commitAndroidAutofill(context)
                         // Authenticated locally (with background cloud sync if online)
                     }
                     is UsernamePasswordLoginResult.EmptyUsername -> {
@@ -463,11 +558,22 @@ fun OperatorAuthScreen(
                     )
                 ) {
                     is SendEmailVerificationOutcome.Sent -> {
-                        onSavePendingVerification(targetUsername, outcome.email, computedPasswordHash)
+                        onSavePendingVerification(
+                            targetUsername,
+                            outcome.email,
+                            computedPasswordHash,
+                            if (!isResend && rememberCredentials) trimmedPassword else null
+                        )
                         resendCooldownSec = 30
                     }
                     is SendEmailVerificationOutcome.AlreadyVerified -> {
-                        onAccountEmailVerified(targetUsername, outcome.email, computedPasswordHash)
+                        commitAndroidAutofill(context)
+                        onAccountEmailVerified(
+                            targetUsername,
+                            outcome.email,
+                            computedPasswordHash,
+                            if (!isResend && rememberCredentials) trimmedPassword else null
+                        )
                     }
                     is SendEmailVerificationOutcome.EmailAlreadyInUse -> {
                         statusBannerError = outcome.message
@@ -595,6 +701,10 @@ fun OperatorAuthScreen(
                                 }
                                 usernameInput = OperatorIdentityFormatter.sanitizeUsername(typedEmail)
                             }
+                            if (isAutoFilledPassword) {
+                                passwordInput = ""
+                                isAutoFilledPassword = false
+                            }
                             activeTab = nextTab
                             usernameError = null
                             emailError = null
@@ -607,66 +717,91 @@ fun OperatorAuthScreen(
                     )
 
                     if (activeTab == AuthScreenTab.LOGIN_VERIFIED) {
-                        Text(
-                            text = stringResource(R.string.auth_login_title),
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = stringResource(R.string.auth_login_subtitle),
-                            style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
                         if (verifiedAccounts.isNotEmpty()) {
                             VerifiedOperatorAccountsSection(
                                 verifiedAccounts = verifiedAccounts,
+                                savedCredentialUsernames = savedCredentialUsernames,
                                 selectedAccountName = previewAccountName,
                                 chipTagPrefix = "saved_operator_chip_",
                                 onSelectAccount = { account ->
                                     usernameInput = account.accountName
+                                    val savedPwd = onLoadSavedPassword(account.accountName)
+                                    if (!savedPwd.isNullOrEmpty()) {
+                                        passwordInput = savedPwd
+                                        isAutoFilledPassword = true
+                                        rememberCredentials = true
+                                    } else {
+                                        passwordInput = ""
+                                        isAutoFilledPassword = false
+                                    }
                                     usernameError = null
                                     passwordError = null
                                     notRegisteredUsername = null
                                     resetSuccessEmail = null
                                     resetErrorMessage = null
+                                    savedCredNotice = null
+                                },
+                                onForgetAccount = { account ->
+                                    forgetCandidateAccount = account.accountName
                                 }
                             )
                         }
 
+                        if (!savedCredNotice.isNullOrBlank()) {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("saved_credentials_removed_notice"),
+                                shape = MaterialTheme.shapes.small,
+                                color = extras.elevatedSurface,
+                                border = BorderStroke(1.dp, extras.cardBorder)
+                            ) {
+                                Text(
+                                    text = savedCredNotice.orEmpty(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+
+                        val isLoginMatchedVerified = verifiedAccounts.any {
+                            it.accountName.equals(previewAccountName, ignoreCase = true) ||
+                                (isLoginEmailTyped && it.email.equals(usernameInput, ignoreCase = true))
+                        }
                         UsernameOutlinedField(
                             value = usernameInput,
                             errorText = usernameError,
                             tag = "username_login_input",
                             allowEmailIdentifier = true,
+                            isVerifiedMatch = isLoginMatchedVerified,
+                            autofillTypes = listOf(AutofillType.Username, AutofillType.EmailAddress),
                             onValueChange = { raw ->
                                 usernameInput = sanitizeLoginIdentifierInput(raw)
+                                isAutoFilledPassword = false
                                 usernameError = null
                                 notRegisteredUsername = null
                                 resetErrorMessage = null
+                                savedCredNotice = null
                             },
                             onDone = { submitUsernamePasswordLogin() }
                         )
 
-                        AccountPreviewBanner(
-                            previewAccountName = previewAccountName,
-                            isVerifiedBadge = verifiedAccounts.any {
-                                it.accountName.equals(previewAccountName, ignoreCase = true) ||
-                                    (isLoginEmailTyped && it.email.equals(usernameInput, ignoreCase = true))
-                            },
-                            modifier = Modifier.testTag("login_account_preview")
-                        )
-
-                        // Password field + Lupa Password button right below it (no email field needed on Login tab)
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             PasswordOutlinedField(
                                 value = passwordInput,
                                 visible = isPasswordVisible,
                                 errorText = passwordError,
-                                helperText = stringResource(R.string.auth_password_login_helper),
+                                helperText = if (isAutoFilledPassword) {
+                                    stringResource(R.string.auth_saved_credentials_autofilled)
+                                } else {
+                                    null
+                                },
                                 tag = "login_password_input",
+                                autofillTypes = listOf(AutofillType.Password),
                                 onValueChange = {
                                     passwordInput = it
+                                    isAutoFilledPassword = false
                                     if (passwordError != null) passwordError = null
                                     if (resetErrorMessage != null) resetErrorMessage = null
                                 },
@@ -674,49 +809,11 @@ fun OperatorAuthScreen(
                                 onDone = { submitUsernamePasswordLogin() }
                             )
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End
-                            ) {
-                                TextButton(
-                                    onClick = { submitForgotPassword() },
-                                    enabled = !isSendingPasswordReset && resetCooldownSec == 0,
-                                    modifier = Modifier
-                                        .heightIn(min = 48.dp)
-                                        .testTag("forgot_password_button"),
-                                    colors = ButtonDefaults.textButtonColors(
-                                        contentColor = extras.interactiveAccent
-                                    )
-                                ) {
-                                    if (isSendingPasswordReset) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(14.dp),
-                                            strokeWidth = 2.dp,
-                                            color = extras.interactiveAccent
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = stringResource(R.string.auth_sending_password_reset),
-                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                                        )
-                                    } else {
-                                        Icon(
-                                            imageVector = Icons.Filled.LockReset,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(17.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(5.dp))
-                                        Text(
-                                            text = if (resetCooldownSec > 0) {
-                                                stringResource(R.string.auth_forgot_password_cooldown, resetCooldownSec)
-                                            } else {
-                                                stringResource(R.string.auth_action_forgot_password)
-                                            },
-                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                                        )
-                                    }
-                                }
-                            }
+                            RememberCredentialsCheckboxRow(
+                                checked = rememberCredentials,
+                                tag = "login_remember_credentials_checkbox",
+                                onCheckedChange = { rememberCredentials = it }
+                            )
                         }
 
                         if (!resetSuccessEmail.isNullOrBlank()) {
@@ -871,38 +968,67 @@ fun OperatorAuthScreen(
                                 }
                             }
                         }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            TextButton(
+                                onClick = { submitForgotPassword() },
+                                enabled = !isSendingPasswordReset && resetCooldownSec == 0,
+                                modifier = Modifier
+                                    .heightIn(min = 48.dp)
+                                    .testTag("forgot_password_button"),
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = extras.interactiveAccent
+                                )
+                            ) {
+                                if (isSendingPasswordReset) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        strokeWidth = 2.dp,
+                                        color = extras.interactiveAccent
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = stringResource(R.string.auth_sending_password_reset),
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Filled.LockReset,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(17.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = if (resetCooldownSec > 0) {
+                                            stringResource(R.string.auth_forgot_password_cooldown, resetCooldownSec)
+                                        } else {
+                                            stringResource(R.string.auth_action_forgot_password)
+                                        },
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                    )
+                                }
+                            }
+                        }
                     } else {
                         // REGISTER & STANDARD FIREBASE EMAIL VERIFICATION TAB
-                        Text(
-                            text = stringResource(R.string.auth_register_title),
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = stringResource(R.string.auth_register_subtitle),
-                            style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
                         if (!isAwaitingVerification) {
                             UsernameOutlinedField(
                                 value = usernameInput,
                                 errorText = usernameError,
                                 tag = "register_username_input",
+                                isVerifiedMatch = verifiedAccounts.any {
+                                    it.accountName.equals(previewAccountName, ignoreCase = true)
+                                },
+                                autofillTypes = listOf(AutofillType.Username),
                                 onValueChange = { raw ->
                                     usernameInput = OperatorIdentityFormatter.sanitizeUsername(raw)
                                     usernameError = null
                                     statusBannerError = null
                                 },
                                 onDone = {}
-                            )
-
-                            AccountPreviewBanner(
-                                previewAccountName = previewAccountName,
-                                isVerifiedBadge = verifiedAccounts.any {
-                                    it.accountName.equals(previewAccountName, ignoreCase = true)
-                                },
-                                modifier = Modifier.testTag("register_account_preview")
                             )
 
                             OutlinedTextField(
@@ -914,6 +1040,14 @@ fun OperatorAuthScreen(
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .androidAutofill(
+                                        autofillTypes = listOf(AutofillType.EmailAddress),
+                                        onFill = { filled ->
+                                            emailInput = filled.trim()
+                                            if (emailError != null) emailError = null
+                                            if (statusBannerError != null) statusBannerError = null
+                                        }
+                                    )
                                     .testTag("register_email_input"),
                                 singleLine = true,
                                 label = { Text(stringResource(R.string.auth_email_label)) },
@@ -926,8 +1060,10 @@ fun OperatorAuthScreen(
                                     )
                                 },
                                 isError = emailError != null,
-                                supportingText = {
-                                    Text(text = emailError ?: stringResource(R.string.auth_email_helper))
+                                supportingText = if (emailError != null) {
+                                    { Text(text = emailError.orEmpty()) }
+                                } else {
+                                    null
                                 },
                                 keyboardOptions = KeyboardOptions(
                                     capitalization = KeyboardCapitalization.None,
@@ -943,20 +1079,30 @@ fun OperatorAuthScreen(
                                 shape = MaterialTheme.shapes.medium
                             )
 
-                            PasswordOutlinedField(
-                                value = passwordInput,
-                                visible = isPasswordVisible,
-                                errorText = passwordError,
-                                helperText = stringResource(R.string.auth_password_register_helper),
-                                tag = "register_password_input",
-                                onValueChange = {
-                                    passwordInput = it
-                                    if (passwordError != null) passwordError = null
-                                    if (statusBannerError != null) statusBannerError = null
-                                },
-                                onToggleVisibility = { isPasswordVisible = !isPasswordVisible },
-                                onDone = { submitSendVerificationEmail(false) }
-                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                PasswordOutlinedField(
+                                    value = passwordInput,
+                                    visible = isPasswordVisible,
+                                    errorText = passwordError,
+                                    placeholderText = stringResource(R.string.auth_password_register_placeholder),
+                                    helperText = null,
+                                    tag = "register_password_input",
+                                    autofillTypes = listOf(AutofillType.NewPassword),
+                                    onValueChange = {
+                                        passwordInput = it
+                                        if (passwordError != null) passwordError = null
+                                        if (statusBannerError != null) statusBannerError = null
+                                    },
+                                    onToggleVisibility = { isPasswordVisible = !isPasswordVisible },
+                                    onDone = { submitSendVerificationEmail(false) }
+                                )
+
+                                RememberCredentialsCheckboxRow(
+                                    checked = rememberCredentials,
+                                    tag = "register_remember_credentials_checkbox",
+                                    onCheckedChange = { rememberCredentials = it }
+                                )
+                            }
 
                             if (!statusBannerError.isNullOrBlank()) {
                                 ErrorBannerBox(message = statusBannerError.orEmpty())
@@ -1137,28 +1283,6 @@ fun OperatorAuthScreen(
                             }
                         }
                     }
-
-                    HorizontalDivider(color = extras.cardBorder)
-
-                    // Compact hybrid status footer
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isOnlineRealtime) Icons.Filled.CloudDone else Icons.Filled.CloudOff,
-                            contentDescription = null,
-                            tint = if (isOnlineRealtime) extras.leafAccentReadable else extras.interactiveAccent,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = stringResource(R.string.auth_offline_ready_hint),
-                            style = MaterialTheme.typography.labelSmall.copy(lineHeight = 16.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
                 }
             }
 
@@ -1169,6 +1293,27 @@ fun OperatorAuthScreen(
                 color = Color.White.copy(alpha = 0.80f)
             )
         }
+    }
+
+    val pendingForget = forgetCandidateAccount
+    if (pendingForget != null) {
+        ForgetSavedAccountDialog(
+            accountName = pendingForget,
+            isActiveSessionOnly = false,
+            onConfirm = {
+                forgetCandidateAccount = null
+                onForgetSavedAccount(pendingForget)
+                if (previewAccountName.equals(pendingForget, ignoreCase = true) ||
+                    usernameInput.equals(pendingForget, ignoreCase = true)
+                ) {
+                    usernameInput = ""
+                    passwordInput = ""
+                    isAutoFilledPassword = false
+                }
+                savedCredNotice = context.getString(R.string.msg_saved_credentials_removed, pendingForget)
+            },
+            onDismiss = { forgetCandidateAccount = null }
+        )
     }
 }
 
@@ -1276,26 +1421,123 @@ private fun ErrorBannerBox(
 }
 
 @Composable
+private fun RememberCredentialsCheckboxRow(
+    checked: Boolean,
+    tag: String,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val extras = SoundingThemeExtras.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clip(MaterialTheme.shapes.small)
+            .clickable(
+                role = Role.Checkbox,
+                onClick = { onCheckedChange(!checked) }
+            )
+            .padding(horizontal = 2.dp, vertical = 4.dp)
+            .testTag(tag),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = null,
+            colors = CheckboxDefaults.colors(
+                checkedColor = extras.leafAccent,
+                uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                checkmarkColor = Color.White
+            )
+        )
+        Text(
+            text = stringResource(R.string.auth_remember_credentials_label),
+            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun ForgetSavedAccountDialog(
+    accountName: String,
+    isActiveSessionOnly: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.auth_forget_account_title),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+            )
+        },
+        text = {
+            Text(
+                text = stringResource(
+                    if (isActiveSessionOnly) {
+                        R.string.auth_forget_active_password_message
+                    } else {
+                        R.string.auth_forget_account_message
+                    },
+                    accountName
+                ),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                ),
+                modifier = Modifier.testTag("confirm_forget_saved_account_button")
+            ) {
+                Text(stringResource(R.string.auth_forget_account_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.testTag("cancel_forget_saved_account_button")
+            ) {
+                Text(stringResource(R.string.dialog_cancel))
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
 private fun PasswordOutlinedField(
     value: String,
     visible: Boolean,
     errorText: String?,
-    helperText: String,
+    placeholderText: String = stringResource(R.string.auth_password_placeholder),
+    helperText: String? = null,
     tag: String,
+    autofillTypes: List<AutofillType> = listOf(AutofillType.Password),
     onValueChange: (String) -> Unit,
     onToggleVisibility: () -> Unit,
     onDone: () -> Unit
 ) {
     val extras = SoundingThemeExtras.colors
+    val supporting = errorText ?: helperText?.takeIf { it.isNotBlank() }
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = Modifier
             .fillMaxWidth()
+            .androidAutofill(
+                autofillTypes = autofillTypes,
+                onFill = onValueChange
+            )
             .testTag(tag),
         singleLine = true,
         label = { Text(stringResource(R.string.auth_password_label)) },
-        placeholder = { Text(stringResource(R.string.auth_password_placeholder)) },
+        placeholder = { Text(placeholderText) },
         leadingIcon = {
             Icon(
                 imageVector = Icons.Filled.Lock,
@@ -1319,8 +1561,10 @@ private fun PasswordOutlinedField(
         },
         visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
         isError = errorText != null,
-        supportingText = {
-            Text(text = errorText ?: helperText)
+        supportingText = if (supporting != null) {
+            { Text(text = supporting) }
+        } else {
+            null
         },
         keyboardOptions = KeyboardOptions(
             capitalization = KeyboardCapitalization.None,
@@ -1338,12 +1582,15 @@ private fun PasswordOutlinedField(
     )
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun UsernameOutlinedField(
     value: String,
     errorText: String?,
     tag: String,
     allowEmailIdentifier: Boolean = false,
+    isVerifiedMatch: Boolean = false,
+    autofillTypes: List<AutofillType> = listOf(AutofillType.Username),
     onValueChange: (String) -> Unit,
     onDone: () -> Unit
 ) {
@@ -1353,6 +1600,10 @@ private fun UsernameOutlinedField(
         onValueChange = onValueChange,
         modifier = Modifier
             .fillMaxWidth()
+            .androidAutofill(
+                autofillTypes = autofillTypes,
+                onFill = onValueChange
+            )
             .testTag(tag),
         singleLine = true,
         label = {
@@ -1376,13 +1627,23 @@ private fun UsernameOutlinedField(
                 tint = extras.interactiveAccent
             )
         },
-        isError = errorText != null,
-        supportingText = {
-            Text(
-                text = errorText ?: stringResource(
-                    if (allowEmailIdentifier) R.string.auth_login_identifier_helper else R.string.username_input_helper
+        trailingIcon = if (isVerifiedMatch && value.isNotBlank()) {
+            {
+                Icon(
+                    imageVector = Icons.Filled.Verified,
+                    contentDescription = null,
+                    tint = extras.leafAccentReadable,
+                    modifier = Modifier.size(20.dp)
                 )
-            )
+            }
+        } else {
+            null
+        },
+        isError = errorText != null,
+        supportingText = if (errorText != null) {
+            { Text(text = errorText) }
+        } else {
+            null
         },
         keyboardOptions = KeyboardOptions(
             capitalization = KeyboardCapitalization.None,
@@ -1400,12 +1661,15 @@ private fun UsernameOutlinedField(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun SwitchUsernameBottomSheet(
     currentAccountName: String,
     verifiedAccounts: List<VerifiedOperatorAccount>,
-    onAuthenticateSwitch: suspend (rawUsername: String, rawPassword: String) -> UsernamePasswordLoginResult,
+    savedCredentialUsernames: Set<String> = emptySet(),
+    onLoadSavedPassword: (accountName: String) -> String? = { null },
+    onForgetSavedAccount: (accountName: String) -> Unit = {},
+    onAuthenticateSwitch: suspend (rawUsername: String, rawPassword: String, rememberCredentials: Boolean) -> UsernamePasswordLoginResult,
     onRequestCreateVerifiedAccount: (rawUsername: String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -1419,6 +1683,9 @@ fun SwitchUsernameBottomSheet(
     }
     var passwordInput by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
+    var rememberCredentials by remember { mutableStateOf(true) }
+    var isAutoFilledPassword by remember { mutableStateOf(false) }
+    var forgetCandidateAccount by remember { mutableStateOf<String?>(null) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
     var notRegisteredUsername by remember { mutableStateOf<String?>(null) }
@@ -1461,8 +1728,9 @@ fun SwitchUsernameBottomSheet(
         isAuthenticating = true
         scope.launch {
             try {
-                when (val result = onAuthenticateSwitch(clean, passwordInput)) {
+                when (val result = onAuthenticateSwitch(clean, passwordInput, rememberCredentials)) {
                     is UsernamePasswordLoginResult.Success -> {
+                        commitAndroidAutofill(context)
                         // Dismissed by caller
                     }
                     is UsernamePasswordLoginResult.EmptyUsername -> {
@@ -1539,13 +1807,26 @@ fun SwitchUsernameBottomSheet(
             if (verifiedAccounts.isNotEmpty()) {
                 VerifiedOperatorAccountsSection(
                     verifiedAccounts = verifiedAccounts,
+                    savedCredentialUsernames = savedCredentialUsernames,
                     selectedAccountName = previewAccountName,
                     chipTagPrefix = "switch_saved_chip_",
                     onSelectAccount = { account ->
                         usernameInput = account.accountName
+                        val savedPwd = onLoadSavedPassword(account.accountName)
+                        if (!savedPwd.isNullOrEmpty()) {
+                            passwordInput = savedPwd
+                            isAutoFilledPassword = true
+                            rememberCredentials = true
+                        } else {
+                            passwordInput = ""
+                            isAutoFilledPassword = false
+                        }
                         errorMsg = null
                         passwordError = null
                         notRegisteredUsername = null
+                    },
+                    onForgetAccount = { account ->
+                        forgetCandidateAccount = account.accountName
                     }
                 )
             }
@@ -1554,34 +1835,45 @@ fun SwitchUsernameBottomSheet(
                 value = usernameInput,
                 errorText = errorMsg,
                 tag = "switch_username_input",
+                isVerifiedMatch = isPreviewVerified,
+                autofillTypes = listOf(AutofillType.Username),
                 onValueChange = { raw ->
                     usernameInput = OperatorIdentityFormatter.sanitizeUsername(raw)
+                    isAutoFilledPassword = false
                     errorMsg = null
                     notRegisteredUsername = null
                 },
                 onDone = { submitSwitch() }
             )
 
-            AccountPreviewBanner(
-                previewAccountName = previewAccountName,
-                isVerifiedBadge = isPreviewVerified,
-                modifier = Modifier.testTag("switch_account_preview")
-            )
-
             if (!isSameAsCurrent && previewAccountName.isNotBlank()) {
-                PasswordOutlinedField(
-                    value = passwordInput,
-                    visible = isPasswordVisible,
-                    errorText = passwordError,
-                    helperText = stringResource(R.string.auth_password_login_helper),
-                    tag = "switch_password_input",
-                    onValueChange = {
-                        passwordInput = it
-                        if (passwordError != null) passwordError = null
-                    },
-                    onToggleVisibility = { isPasswordVisible = !isPasswordVisible },
-                    onDone = { submitSwitch() }
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    PasswordOutlinedField(
+                        value = passwordInput,
+                        visible = isPasswordVisible,
+                        errorText = passwordError,
+                        helperText = if (isAutoFilledPassword) {
+                            stringResource(R.string.auth_saved_credentials_autofilled)
+                        } else {
+                            null
+                        },
+                        tag = "switch_password_input",
+                        autofillTypes = listOf(AutofillType.Password),
+                        onValueChange = {
+                            passwordInput = it
+                            isAutoFilledPassword = false
+                            if (passwordError != null) passwordError = null
+                        },
+                        onToggleVisibility = { isPasswordVisible = !isPasswordVisible },
+                        onDone = { submitSwitch() }
+                    )
+
+                    RememberCredentialsCheckboxRow(
+                        checked = rememberCredentials,
+                        tag = "switch_remember_credentials_checkbox",
+                        onCheckedChange = { rememberCredentials = it }
+                    )
+                }
             }
 
             if (!notRegisteredUsername.isNullOrBlank()) {
@@ -1655,15 +1947,38 @@ fun SwitchUsernameBottomSheet(
             }
         }
     }
+
+    val pendingForget = forgetCandidateAccount
+    if (pendingForget != null) {
+        val isActiveAccount = pendingForget.equals(currentAccountName, ignoreCase = true)
+        ForgetSavedAccountDialog(
+            accountName = pendingForget,
+            isActiveSessionOnly = isActiveAccount,
+            onConfirm = {
+                forgetCandidateAccount = null
+                onForgetSavedAccount(pendingForget)
+                if (previewAccountName.equals(pendingForget, ignoreCase = true)) {
+                    passwordInput = ""
+                    isAutoFilledPassword = false
+                    if (!isActiveAccount) {
+                        usernameInput = OperatorIdentityFormatter.sanitizeUsername(currentAccountName)
+                    }
+                }
+            },
+            onDismiss = { forgetCandidateAccount = null }
+        )
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun VerifiedOperatorAccountsSection(
     verifiedAccounts: List<VerifiedOperatorAccount>,
+    savedCredentialUsernames: Set<String> = emptySet(),
     selectedAccountName: String,
     chipTagPrefix: String,
-    onSelectAccount: (VerifiedOperatorAccount) -> Unit
+    onSelectAccount: (VerifiedOperatorAccount) -> Unit,
+    onForgetAccount: ((VerifiedOperatorAccount) -> Unit)? = null
 ) {
     val extras = SoundingThemeExtras.colors
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1673,16 +1988,18 @@ private fun VerifiedOperatorAccountsSection(
             color = extras.interactiveAccent
         )
         FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             verifiedAccounts.forEach { account ->
                 val selected = selectedAccountName.equals(account.accountName, ignoreCase = true)
+                val hasSavedPassword = savedCredentialUsernames.any {
+                    it.equals(account.accountName, ignoreCase = true)
+                }
+                val forgetCd = stringResource(R.string.cd_forget_saved_account, account.accountName)
+                val savedKeyCd = stringResource(R.string.cd_saved_password_indicator)
                 Surface(
-                    modifier = Modifier
-                        .heightIn(min = 40.dp)
-                        .clickable { onSelectAccount(account) }
-                        .testTag("$chipTagPrefix${account.accountName}"),
+                    modifier = Modifier.heightIn(min = 44.dp),
                     shape = RoundedCornerShape(999.dp),
                     color = if (selected) extras.leafContainer else extras.elevatedSurface,
                     border = BorderStroke(
@@ -1691,88 +2008,74 @@ private fun VerifiedOperatorAccountsSection(
                     )
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Verified,
-                            contentDescription = null,
-                            tint = if (selected) extras.onLeafContainer else extras.leafAccentReadable,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Text(
-                            text = account.accountName,
-                            style = MonoTypography.badge.copy(
-                                fontSize = 12.sp,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-                            ),
-                            color = if (selected) extras.onLeafContainer else MaterialTheme.colorScheme.onSurface
-                        )
+                        Row(
+                            modifier = Modifier
+                                .heightIn(min = 44.dp)
+                                .clip(RoundedCornerShape(topStart = 999.dp, bottomStart = 999.dp))
+                                .clickable { onSelectAccount(account) }
+                                .padding(
+                                    start = 12.dp,
+                                    end = if (onForgetAccount != null) 4.dp else 12.dp,
+                                    top = 8.dp,
+                                    bottom = 8.dp
+                                )
+                                .testTag("$chipTagPrefix${account.accountName}"),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Verified,
+                                contentDescription = null,
+                                tint = if (selected) extras.onLeafContainer else extras.leafAccentReadable,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text(
+                                text = account.accountName,
+                                style = MonoTypography.badge.copy(
+                                    fontSize = 12.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                                ),
+                                color = if (selected) extras.onLeafContainer else MaterialTheme.colorScheme.onSurface
+                            )
+                            if (hasSavedPassword) {
+                                Icon(
+                                    imageVector = Icons.Filled.Key,
+                                    contentDescription = savedKeyCd,
+                                    tint = if (selected) extras.onLeafContainer else extras.leafAccentReadable,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            }
+                        }
+                        if (onForgetAccount != null) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(end = 2.dp)
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .clickable(
+                                        role = Role.Button,
+                                        onClick = { onForgetAccount(account) }
+                                    )
+                                    .semantics { contentDescription = forgetCd }
+                                    .testTag("forget_${chipTagPrefix}${account.accountName}"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = null,
+                                    tint = if (selected) {
+                                        extras.onLeafContainer.copy(alpha = 0.78f)
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AccountPreviewBanner(
-    previewAccountName: String,
-    isVerifiedBadge: Boolean = false,
-    modifier: Modifier = Modifier
-) {
-    val extras = SoundingThemeExtras.colors
-    val hasValidAccount = previewAccountName.isNotBlank()
-    val displayText = if (hasValidAccount) {
-        previewAccountName
-    } else {
-        stringResource(R.string.username_preview_empty)
-    }
-
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        color = if (hasValidAccount) extras.leafContainer else extras.elevatedSurface,
-        border = BorderStroke(
-            width = 1.dp,
-            color = if (hasValidAccount) extras.leafAccent.copy(alpha = 0.55f) else extras.cardBorder
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.username_preview_label),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = displayText,
-                    style = MonoTypography.subMetric.copy(
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    ),
-                    color = if (hasValidAccount) extras.onLeafContainer else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            if (hasValidAccount) {
-                Icon(
-                    imageVector = if (isVerifiedBadge) Icons.Filled.Verified else Icons.Filled.CheckCircle,
-                    contentDescription = null,
-                    tint = extras.leafAccentReadable,
-                    modifier = Modifier.size(20.dp)
-                )
             }
         }
     }

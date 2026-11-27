@@ -92,7 +92,7 @@ val SoundingTypography = Typography(
         fontWeight = FontWeight.SemiBold,
         fontSize = 11.sp,
         lineHeight = 14.sp,
-        letterSpacing = 0.4.sp
+        letterSpacing = 0.35.sp
     )
 )
 
@@ -109,6 +109,20 @@ object MonoTypography {
         fontWeight = FontWeight.SemiBold,
         fontSize = 15.sp,
         lineHeight = 20.sp,
+        fontFeatureSettings = "tnum"
+    )
+    val fieldStock = TextStyle(
+        fontFamily = JetBrainsMonoFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 14.5.sp,
+        lineHeight = 19.sp,
+        fontFeatureSettings = "tnum"
+    )
+    val fieldTon = TextStyle(
+        fontFamily = JetBrainsMonoFontFamily,
+        fontWeight = FontWeight.Medium,
+        fontSize = 11.sp,
+        lineHeight = 14.sp,
         fontFeatureSettings = "tnum"
     )
     val detailValue = TextStyle(

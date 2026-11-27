@@ -55,7 +55,6 @@ import com.example.R
 import com.example.ui.AppUpdateStatus
 import com.example.ui.AppUpdateUiState
 import com.example.ui.theme.MonoTypography
-import com.example.ui.theme.SaveGradientGreen
 import com.example.ui.theme.SoundingThemeExtras
 import com.example.util.AppUpdateChecker
 import com.example.util.GitHubReleaseInfo
@@ -92,13 +91,13 @@ fun UpdateAvailableBanner(
                 modifier = Modifier
                     .size(34.dp)
                     .clip(CircleShape)
-                    .background(extras.leafAccent),
+                    .background(extras.sagePrimary),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Filled.SystemUpdate,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = extras.onSagePrimary,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -128,7 +127,7 @@ fun UpdateAvailableBanner(
 
             Surface(
                 shape = RoundedCornerShape(999.dp),
-                color = extras.leafAccent,
+                color = extras.sagePrimary,
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
                     .clickable(onClick = onOpenDetails)
@@ -137,7 +136,7 @@ fun UpdateAvailableBanner(
                 Text(
                     text = stringResource(R.string.update_banner_action_view),
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = Color.White,
+                    color = extras.onSagePrimary,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                 )
             }
@@ -258,26 +257,16 @@ fun UpdateAvailableDialog(
             }
         },
         confirmButton = {
-            val pillShape = RoundedCornerShape(999.dp)
-            val ctaGradient = Brush.horizontalGradient(
-                colors = listOf(SaveGradientGreen, extras.limeAccent, extras.primaryCtaEnd)
-            )
             Button(
                 onClick = { onDownloadApk(release) },
                 modifier = Modifier
-                    .heightIn(min = 48.dp)
-                    .clip(pillShape)
-                    .background(ctaGradient, pillShape)
+                    .heightIn(min = 50.dp)
                     .testTag("update_dialog_download_button"),
-                shape = pillShape,
+                shape = RoundedCornerShape(16.dp),
                 contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Transparent,
-                    contentColor = Color.White
-                ),
-                elevation = ButtonDefaults.buttonElevation(
-                    defaultElevation = 0.dp,
-                    pressedElevation = 0.dp
+                    containerColor = extras.sagePrimary,
+                    contentColor = extras.onSagePrimary
                 )
             ) {
                 Icon(
@@ -328,11 +317,13 @@ fun AboutAppUpdateCard(
             .testTag("about_update_card"),
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(
-            width = 1.dp,
-            color = if (updateState.hasUpdate) extras.leafAccent else extras.cardBorder
-        ),
-        tonalElevation = 1.dp
+        border = if (extras.isDark || updateState.hasUpdate) {
+            BorderStroke(
+                width = 1.dp,
+                color = if (updateState.hasUpdate) extras.sagePrimary else extras.cardBorder
+            )
+        } else null,
+        shadowElevation = if (extras.isDark) 0.dp else 1.5.dp
     ) {
         Column(
             modifier = Modifier
@@ -370,9 +361,8 @@ fun AboutAppUpdateCard(
             // Version & Repository info box
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-                color = extras.elevatedSurface,
-                border = BorderStroke(1.dp, extras.cardBorder)
+                shape = RoundedCornerShape(16.dp),
+                color = extras.innerContainer
             ) {
                 Column(
                     modifier = Modifier
@@ -494,26 +484,16 @@ fun AboutAppUpdateCard(
             }
 
             if (release != null && updateState.hasUpdate) {
-                val pillShape = RoundedCornerShape(999.dp)
-                val downloadGradient = Brush.horizontalGradient(
-                    colors = listOf(SaveGradientGreen, extras.limeAccent, extras.primaryCtaEnd)
-                )
                 Button(
                     onClick = { onDownloadUpdate(release) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .clip(pillShape)
-                        .background(downloadGradient, pillShape)
+                        .heightIn(min = 50.dp)
                         .testTag("about_download_update_button"),
-                    shape = pillShape,
+                    shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Transparent,
-                        contentColor = Color.White
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(
-                        defaultElevation = 0.dp,
-                        pressedElevation = 0.dp
+                        containerColor = extras.sagePrimary,
+                        contentColor = extras.onSagePrimary
                     )
                 ) {
                     Icon(
@@ -534,12 +514,12 @@ fun AboutAppUpdateCard(
                 enabled = !updateState.isChecking,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 48.dp)
+                    .heightIn(min = 50.dp)
                     .testTag("about_check_update_button"),
-                shape = MaterialTheme.shapes.medium,
-                border = BorderStroke(1.dp, extras.interactiveAccent),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, extras.sagePrimary.copy(alpha = 0.6f)),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = extras.interactiveAccent
+                    contentColor = extras.sagePrimary
                 )
             ) {
                 if (updateState.isChecking) {

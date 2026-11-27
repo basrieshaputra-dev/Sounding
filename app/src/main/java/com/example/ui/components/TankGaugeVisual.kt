@@ -29,6 +29,8 @@ import androidx.compose.material.icons.filled.DeviceThermostat
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Opacity
 import androidx.compose.material.icons.filled.Scale
+import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -61,6 +63,7 @@ import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.model.SoundingCalculation
 import com.example.ui.theme.MonoTypography
@@ -87,9 +90,20 @@ fun VerticalCylinderTankDiagram(
     val extras = SoundingThemeExtras.colors
     val colorScheme = MaterialTheme.colorScheme
     val isOverfill = calc.levelFillPercent > 100.0
+    val highLevelDisplay = SoundingFormatters.formatFixed(calc.highLevel, 2)
+    val highLevelFormula = remember(calc.sounding, calc.tableLevel, calc.highLevel) {
+        val soundingStr = SoundingFormatters.formatCompact(calc.sounding)
+        val tableDelta = if (calc.tableLevel < 0.0) {
+            "- ${SoundingFormatters.formatCompact(-calc.tableLevel)}"
+        } else {
+            "+ ${SoundingFormatters.formatCompact(calc.tableLevel)}"
+        }
+        "$soundingStr $tableDelta = $highLevelDisplay cm"
+    }
     val tableVolDisplay = SoundingFormatters.formatIndonesianNumber(calc.baseVol)
     val stockKgDisplay = SoundingFormatters.formatIndonesianInteger(calc.stockKg)
     val tempDisplay = SoundingFormatters.formatCompact(calc.temp)
+    val densityDisplay = SoundingFormatters.formatFixed(calc.density, 4)
 
     val accessibilitySummary = stringResource(
         R.string.cd_tank_diagram,
@@ -105,9 +119,9 @@ fun VerticalCylinderTankDiagram(
             .testTag("vertical_tank_diagram_card")
             .semantics { contentDescription = accessibilitySummary },
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = extras.glassCardSurface),
-        border = BorderStroke(1.dp, extras.glassBorder),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (extras.isDark) 0.dp else 1.dp)
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
+        border = BorderStroke(1.dp, extras.cardBorder),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (extras.isDark) 0.dp else 2.dp)
     ) {
         Column(
             modifier = Modifier
@@ -163,13 +177,13 @@ fun VerticalCylinderTankDiagram(
 
             // Responsive Body: Upright Cylindrical Tank + Side Telemetry Callouts
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                val isVeryNarrow = maxWidth < 310.dp
+                val isVeryNarrow = maxWidth < 300.dp
                 val tankWidth = when {
-                    maxWidth < 340.dp -> 128.dp
-                    maxWidth < 440.dp -> 150.dp
-                    else -> 172.dp
+                    maxWidth < 340.dp -> 122.dp
+                    maxWidth < 440.dp -> 142.dp
+                    else -> 166.dp
                 }
-                val tankHeight = if (maxWidth < 340.dp) 200.dp else 224.dp
+                val tankHeight = if (maxWidth < 340.dp) 312.dp else 334.dp
 
                 if (isVeryNarrow) {
                     Column(
@@ -183,15 +197,18 @@ fun VerticalCylinderTankDiagram(
                             isOverfill = isOverfill,
                             modifier = Modifier
                                 .width(158.dp)
-                                .height(206.dp)
+                                .height(216.dp)
                         )
                         TelemetryReadoutsColumn(
                             calc = calc,
+                            highLevelDisplay = highLevelDisplay,
+                            highLevelFormula = highLevelFormula,
                             tableVolDisplay = tableVolDisplay,
                             stockKgEditInput = stockKgEditInput,
                             onStockKgChanged = onStockKgChanged,
                             onStockKgEditDone = onStockKgEditDone,
                             tempDisplay = tempDisplay,
+                            densityDisplay = densityDisplay,
                             isOverfill = isOverfill,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -199,7 +216,7 @@ fun VerticalCylinderTankDiagram(
                 } else {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         CylinderCanvasWithTankBadge(
@@ -213,11 +230,14 @@ fun VerticalCylinderTankDiagram(
 
                         TelemetryReadoutsColumn(
                             calc = calc,
+                            highLevelDisplay = highLevelDisplay,
+                            highLevelFormula = highLevelFormula,
                             tableVolDisplay = tableVolDisplay,
                             stockKgEditInput = stockKgEditInput,
                             onStockKgChanged = onStockKgChanged,
                             onStockKgEditDone = onStockKgEditDone,
                             tempDisplay = tempDisplay,
+                            densityDisplay = densityDisplay,
                             isOverfill = isOverfill,
                             modifier = Modifier.weight(1f)
                         )
@@ -291,11 +311,14 @@ private fun CylinderCanvasWithTankBadge(
 @Composable
 private fun TelemetryReadoutsColumn(
     calc: SoundingCalculation,
+    highLevelDisplay: String,
+    highLevelFormula: String,
     tableVolDisplay: String,
     stockKgEditInput: String?,
     onStockKgChanged: (String) -> Unit,
     onStockKgEditDone: () -> Unit,
     tempDisplay: String,
+    densityDisplay: String,
     isOverfill: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -303,9 +326,15 @@ private fun TelemetryReadoutsColumn(
 
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
-        // 1. Volume Tabel (L)
+        // 1. High Level (cm) + rincian rumus koreksi meja ukur
+        HighLevelMetricTile(
+            highLevelValue = "$highLevelDisplay cm",
+            formulaDetail = highLevelFormula
+        )
+
+        // 2. Volume Tabel (L)
         DiagramMetricTile(
             icon = Icons.Default.Opacity,
             iconTint = extras.interactiveAccent,
@@ -315,7 +344,7 @@ private fun TelemetryReadoutsColumn(
             valueTag = "diagram_table_vol_value"
         )
 
-        // 2. Editable Total Stock (kg) synced bi-directionally with Sounding Level
+        // 3. Editable Total Stock (kg) synced bi-directionally with Sounding Level
         EditableTotalStockTile(
             stockKg = calc.stockKg,
             stockKgEditInput = stockKgEditInput,
@@ -324,7 +353,7 @@ private fun TelemetryReadoutsColumn(
             isOverfill = isOverfill
         )
 
-        // 3. Suhu (°C)
+        // 4. Suhu (°C)
         DiagramMetricTile(
             icon = Icons.Default.DeviceThermostat,
             iconTint = extras.leafAccentReadable,
@@ -336,6 +365,76 @@ private fun TelemetryReadoutsColumn(
             ),
             valueTag = "diagram_temp_value"
         )
+
+        // 5. Density (kg/L)
+        DiagramMetricTile(
+            icon = Icons.Default.WaterDrop,
+            iconTint = extras.interactiveAccent,
+            label = stringResource(R.string.diagram_label_density),
+            value = densityDisplay,
+            subLabel = stringResource(R.string.diagram_density_unit),
+            valueTag = "diagram_density_value"
+        )
+    }
+}
+
+@Composable
+private fun HighLevelMetricTile(
+    highLevelValue: String,
+    formulaDetail: String
+) {
+    val extras = SoundingThemeExtras.colors
+    val colorScheme = MaterialTheme.colorScheme
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 72.dp),
+        shape = MaterialTheme.shapes.medium,
+        color = extras.innerContainer,
+        border = BorderStroke(1.dp, extras.cardBorder)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 11.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Straighten,
+                    contentDescription = null,
+                    tint = extras.emeraldAccent,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = stringResource(R.string.diagram_label_high_level),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Text(
+                text = highLevelValue,
+                style = MonoTypography.subMetric,
+                color = colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag("diagram_high_level_value")
+            )
+            Text(
+                text = formulaDetail,
+                style = MonoTypography.badge.copy(fontSize = 10.5.sp),
+                color = extras.leafAccentReadable,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag("diagram_high_level_formula")
+            )
+        }
     }
 }
 
@@ -360,28 +459,29 @@ private fun EditableTotalStockTile(
     val editCd = stringResource(R.string.cd_edit_total_stock)
 
     val borderColor = when {
-        isFocused -> extras.leafAccent
+        isFocused -> extras.emeraldAccent
         isOverfill -> extras.warningBorder
-        else -> extras.interactiveAccent.copy(alpha = 0.55f)
+        else -> extras.amberAccent.copy(alpha = 0.65f)
     }
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 58.dp)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = { focusRequester.requestFocus() }
             ),
         shape = MaterialTheme.shapes.medium,
-        color = extras.elevatedSurface,
+        color = extras.innerContainer,
         border = BorderStroke(if (isFocused) 1.6.dp else 1.dp, borderColor)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 11.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -391,13 +491,13 @@ private fun EditableTotalStockTile(
                 Icon(
                     imageVector = Icons.Default.Scale,
                     contentDescription = null,
-                    tint = extras.oilSurfaceRim,
+                    tint = extras.amberAccent,
                     modifier = Modifier.size(16.dp)
                 )
                 Text(
                     text = stringResource(R.string.diagram_label_total_stock),
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (isFocused) extras.leafAccentReadable else colorScheme.onSurfaceVariant,
+                    color = if (isFocused) extras.emeraldAccent else colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
@@ -405,7 +505,7 @@ private fun EditableTotalStockTile(
                 Icon(
                     imageVector = Icons.Default.Edit,
                     contentDescription = editCd,
-                    tint = if (isFocused) extras.leafAccentReadable else extras.interactiveAccent,
+                    tint = if (isFocused) extras.emeraldAccent else extras.amberTextReadable,
                     modifier = Modifier.size(13.dp)
                 )
             }
@@ -435,10 +535,10 @@ private fun EditableTotalStockTile(
                         .semantics { contentDescription = editCd }
                         .testTag("diagram_total_stock_input"),
                     textStyle = MonoTypography.subMetric.copy(
-                        color = if (isOverfill) extras.warningText else colorScheme.onSurface
+                        color = if (isOverfill) extras.warningText else extras.amberTextReadable
                     ),
                     singleLine = true,
-                    cursorBrush = SolidColor(extras.leafAccentReadable),
+                    cursorBrush = SolidColor(extras.emeraldAccent),
                     visualTransformation = thousandsTransformation,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Number,
@@ -528,16 +628,18 @@ private fun DiagramMetricTile(
     val colorScheme = MaterialTheme.colorScheme
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 58.dp),
         shape = MaterialTheme.shapes.medium,
-        color = extras.subtleTealTint,
+        color = extras.innerContainer,
         border = BorderStroke(1.dp, extras.cardBorder)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 11.dp, vertical = 9.dp),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
+                .padding(horizontal = 11.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,

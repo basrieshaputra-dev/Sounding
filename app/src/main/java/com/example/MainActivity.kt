@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -55,6 +56,7 @@ import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -149,6 +151,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            runCatching {
+                window.decorView.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_YES
+            }
+        }
         setContent {
             val viewModel: SoundingViewModel = viewModel(
                 factory = SoundingViewModel.provideFactory(applicationContext)
@@ -216,28 +223,45 @@ class MainActivity : ComponentActivity() {
                     val req = authOverlayRequest
                     OperatorAuthScreen(
                         verifiedAccounts = uiState.verifiedAccounts,
+                        savedCredentialUsernames = uiState.savedCredentialUsernames,
                         pendingVerification = uiState.pendingEmailVerification,
                         initialAccountName = req?.username ?: uiState.activeAccountName,
                         initialEmail = req?.email ?: uiState.activeOperatorEmail,
                         forceRegisterTab = req != null,
                         allowCancelBack = uiState.isOperatorLoggedIn && req != null,
                         isOnlineRealtime = uiState.isOnlineRealtime,
-                        onLoginWithUsernamePassword = { rawUsername, rawPassword ->
-                            val result = viewModel.authenticateWithUsernameAndPassword(rawUsername, rawPassword)
+                        onLoadSavedPassword = viewModel::getSavedPasswordForAccount,
+                        onForgetSavedAccount = viewModel::forgetSavedAccountCredentials,
+                        onLoginWithUsernamePassword = { rawUsername, rawPassword, rememberCredentials ->
+                            val result = viewModel.authenticateWithUsernameAndPassword(
+                                rawIdentifier = rawUsername,
+                                rawPassword = rawPassword,
+                                rememberCredentials = rememberCredentials
+                            )
                             if (result is UsernamePasswordLoginResult.Success) {
                                 authOverlayRequest = null
                             }
                             result
                         },
                         onResolvePasswordResetEmail = viewModel::resolveEmailForPasswordReset,
-                        onSavePendingVerification = { rawUsername, email, passwordHash ->
-                            viewModel.savePendingEmailVerification(rawUsername, email, passwordHash)
+                        onSavePendingVerification = { rawUsername, email, passwordHash, rawPasswordToRemember ->
+                            viewModel.savePendingEmailVerification(
+                                rawUsername = rawUsername,
+                                email = email,
+                                passwordHash = passwordHash,
+                                rawPasswordToRemember = rawPasswordToRemember
+                            )
                         },
                         onClearPendingVerification = {
                             viewModel.clearPendingEmailVerification()
                         },
-                        onAccountEmailVerified = { rawUsername, email, passwordHash ->
-                            viewModel.completeVerifiedAccountRegistration(rawUsername, email, passwordHash)
+                        onAccountEmailVerified = { rawUsername, email, passwordHash, rawPasswordToRemember ->
+                            viewModel.completeVerifiedAccountRegistration(
+                                rawUsername = rawUsername,
+                                email = email,
+                                passwordHash = passwordHash,
+                                rawPasswordToRemember = rawPasswordToRemember
+                            )
                             authOverlayRequest = null
                         },
                         onCancelBack = { authOverlayRequest = null }
@@ -597,6 +621,9 @@ fun SoundingTangkiApp(
                             AppTab.DRAFT -> DraftReportScreen(
                                 draft = uiState.shiftDraft,
                                 historyLogs = uiState.historyRecords.map { it.entity },
+                                tankCapacitiesTon = remember(uiState.tanks) {
+                                    uiState.tanks.associate { it.id to it.capacityTon }
+                                },
                                 cloudShiftReports = uiState.filteredCloudShiftReports,
                                 availableDraftDates = uiState.availableDraftDates,
                                 availableDraftAccounts = uiState.availableDraftAccounts,
@@ -809,8 +836,20 @@ fun SoundingTangkiApp(
         SwitchUsernameBottomSheet(
             currentAccountName = uiState.activeAccountName,
             verifiedAccounts = uiState.verifiedAccounts,
-            onAuthenticateSwitch = { rawUsername, rawPassword ->
-                val result = viewModel.authenticateWithUsernameAndPassword(rawUsername, rawPassword)
+            savedCredentialUsernames = uiState.savedCredentialUsernames,
+            onLoadSavedPassword = viewModel::getSavedPasswordForAccount,
+            onForgetSavedAccount = { forgottenAccount ->
+                viewModel.forgetSavedAccountCredentials(forgottenAccount)
+                showFeedback(
+                    context.getString(R.string.msg_saved_credentials_removed, forgottenAccount)
+                )
+            },
+            onAuthenticateSwitch = { rawUsername, rawPassword, rememberCredentials ->
+                val result = viewModel.authenticateWithUsernameAndPassword(
+                    rawIdentifier = rawUsername,
+                    rawPassword = rawPassword,
+                    rememberCredentials = rememberCredentials
+                )
                 if (result is UsernamePasswordLoginResult.Success) {
                     showSwitchUsernameSheet = false
                     showFeedback(
@@ -853,11 +892,12 @@ private fun AppBrandHeader(
     )
     val aboutCd = stringResource(R.string.cd_open_about)
     val switchAccountCd = stringResource(R.string.cd_switch_username)
+    val logoCd = stringResource(R.string.cd_company_logo)
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = Color.Transparent,
-        shadowElevation = 4.dp
+        shadowElevation = if (isDarkTheme) 0.dp else 3.dp
     ) {
         Column(
             modifier = Modifier
@@ -868,160 +908,179 @@ private fun AppBrandHeader(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Company Logo inside soft Warm Off-White (#FFFDF8) 14dp rounded badge
+                Surface(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .testTag("header_company_logo_badge"),
+                    shape = RoundedCornerShape(14.dp),
+                    color = extras.logoBadgeSurface,
+                    shadowElevation = 2.dp
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_company_logo),
+                            contentDescription = logoCd,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+
+                // Compact Title + Inline Account Pill + Subtitle
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Text(
-                        text = stringResource(R.string.app_header_title),
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 17.sp,
-                            lineHeight = 20.sp
-                        ),
-                        color = Color.White,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.testTag("header_title")
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.app_header_title),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 17.sp,
+                                lineHeight = 20.sp
+                            ),
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.testTag("header_title")
+                        )
+
+                        if (activeAccountName.isNotBlank()) {
+                            Surface(
+                                shape = RoundedCornerShape(999.dp),
+                                color = Color.White.copy(alpha = 0.16f),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .clickable(
+                                        role = Role.Button,
+                                        onClick = onOpenSwitchAccount
+                                    )
+                                    .semantics { contentDescription = switchAccountCd }
+                                    .testTag("header_switch_account_chip")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.92f),
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                    Text(
+                                        text = activeAccountName,
+                                        style = MonoTypography.badge.copy(
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        ),
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Default.SwapHoriz,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.85f),
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     Text(
                         text = stringResource(R.string.app_header_subtitle),
                         style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.6.sp
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 10.sp,
+                            letterSpacing = 0.45.sp
                         ),
                         color = extras.headerSubtitleAccent,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.testTag("header_subtitle")
                     )
-                if (activeAccountName.isNotBlank()) {
+
+                    // Compact Connection Status Pill neatly tucked below subtitle
+                    val statusBg = if (isOnlineRealtime) {
+                        extras.emeraldAccent.copy(alpha = 0.22f)
+                    } else {
+                        extras.amberAccent.copy(alpha = 0.24f)
+                    }
+                    val statusBorder = if (isOnlineRealtime) {
+                        extras.emeraldAccent.copy(alpha = 0.65f)
+                    } else {
+                        extras.amberAccent.copy(alpha = 0.65f)
+                    }
+                    val dotColor = if (isOnlineRealtime) extras.onlineIndicatorDot else extras.amberAccent
+
                     Surface(
                         shape = RoundedCornerShape(999.dp),
-                        color = Color.White.copy(alpha = 0.18f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.34f)),
+                        color = statusBg,
+                        border = BorderStroke(1.dp, statusBorder),
                         modifier = Modifier
-                            .padding(top = 2.dp)
+                            .padding(top = 1.dp)
                             .clip(RoundedCornerShape(999.dp))
                             .clickable(
+                                enabled = !isCloudConnected,
                                 role = Role.Button,
-                                onClick = onOpenSwitchAccount
+                                onClick = onConnectCloud
                             )
-                            .semantics { contentDescription = switchAccountCd }
-                            .testTag("header_switch_account_chip")
+                            .testTag("header_connection_badge")
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.5.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.5.dp)
+                                    .clip(CircleShape)
+                                    .background(dotColor)
+                            )
                             Icon(
-                                imageVector = Icons.Default.Person,
+                                imageVector = if (isOnlineRealtime) Icons.Default.CloudDone else Icons.Default.CloudOff,
                                 contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(12.dp)
+                                tint = if (isOnlineRealtime) Color(0xFFA7F3D0) else Color(0xFFFDE68A),
+                                modifier = Modifier.size(11.dp)
                             )
                             Text(
-                                text = activeAccountName,
+                                text = stringResource(
+                                    if (isOnlineRealtime) R.string.status_online_realtime else R.string.status_offline_local
+                                ),
                                 style = MonoTypography.badge.copy(
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.ExtraBold
                                 ),
                                 color = Color.White,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Icon(
-                                imageVector = Icons.Default.SwapHoriz,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.9f),
-                                modifier = Modifier.size(12.dp)
+                                maxLines = 1
                             )
                         }
                     }
-                } else {
-                    Text(
-                        text = stringResource(R.string.app_header_credit),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.SemiBold
-                        ),
-                        color = Color.White.copy(alpha = 0.86f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.testTag("header_credit")
-                    )
-                }
-            }
-
-            Column(
-                modifier = Modifier.padding(start = 10.dp),
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                // Top Row: Dynamic ONLINE • REALTIME / OFFLINE • LOKAL pill badge (clean, without external leaf icon)
-                val statusBg = if (isOnlineRealtime) {
-                    extras.leafAccent.copy(alpha = 0.36f)
-                } else {
-                    Color(0xFFB45309).copy(alpha = 0.42f)
-                }
-                val statusBorder = if (isOnlineRealtime) {
-                    extras.limeBright.copy(alpha = 0.78f)
-                } else {
-                    Color(0xFFFDE68A).copy(alpha = 0.72f)
-                }
-                val dotColor = if (isOnlineRealtime) extras.onlineIndicatorDot else Color(0xFFFBBF24)
-
-                Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = statusBg,
-                    border = BorderStroke(1.dp, statusBorder),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .clickable(
-                            enabled = !isCloudConnected,
-                            role = Role.Button,
-                            onClick = onConnectCloud
-                        )
-                        .testTag("header_connection_badge")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(7.dp)
-                                .clip(CircleShape)
-                                .background(dotColor)
-                        )
-                        Icon(
-                            imageVector = if (isOnlineRealtime) Icons.Default.CloudDone else Icons.Default.CloudOff,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Text(
-                            text = stringResource(
-                                if (isOnlineRealtime) R.string.status_online_realtime else R.string.status_offline_local
-                            ),
-                            style = MonoTypography.badge.copy(fontSize = 9.5.sp),
-                            color = Color.White,
-                            maxLines = 1
-                        )
-                    }
                 }
 
-                // Bottom Row: Info (About) button + Quick Theme Switcher Pill
+                // Right Utility Controls: Compact About & Theme Switcher
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    val pillShape = RoundedCornerShape(999.dp)
+                    val pillShape = RoundedCornerShape(12.dp)
                     Box(
                         modifier = Modifier
                             .minimumInteractiveComponentSize()
@@ -1037,24 +1096,20 @@ private fun AppBrandHeader(
                         Surface(
                             shape = pillShape,
                             color = if (isAboutSelected) {
-                                Color.White
+                                extras.logoBadgeSurface
                             } else {
-                                Color.White.copy(alpha = 0.20f)
-                            },
-                            border = BorderStroke(
-                                1.dp,
-                                if (isAboutSelected) Color.White else Color.White.copy(alpha = 0.36f)
-                            )
+                                Color.White.copy(alpha = 0.16f)
+                            }
                         ) {
                             Box(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = if (isAboutSelected) Icons.Filled.Info else Icons.Outlined.Info,
                                     contentDescription = null,
                                     tint = if (isAboutSelected) extras.headerGradientStart else Color.White,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(17.dp)
                                 )
                             }
                         }
@@ -1070,51 +1125,27 @@ private fun AppBrandHeader(
                             )
                             .semantics { contentDescription = toggleCd }
                             .testTag("theme_toggle_button"),
-                        contentAlignment = Alignment.CenterEnd
+                        contentAlignment = Alignment.Center
                     ) {
                         Surface(
                             shape = pillShape,
-                            color = Color.White.copy(alpha = 0.20f),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.36f))
+                            color = Color.White.copy(alpha = 0.16f)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            Box(
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
                                     contentDescription = null,
                                     tint = Color.White,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Text(
-                                    text = stringResource(
-                                        if (isDarkTheme) R.string.theme_dark_label else R.string.theme_light_label
-                                    ),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White
+                                    modifier = Modifier.size(17.dp)
                                 )
                             }
                         }
                     }
                 }
             }
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.5.dp)
-                    .background(
-                        Brush.horizontalGradient(
-                            colors = listOf(
-                                extras.leafAccent.copy(alpha = 0.75f),
-                                extras.limeBright.copy(alpha = 0.45f),
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
         }
     }
 }
@@ -1134,142 +1165,148 @@ private fun SoundingBottomNav(
         unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
     )
 
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp
-    ) {
-        NavigationBarItem(
-            selected = selectedTab == AppTab.CALCULATOR,
-            onClick = { onSelectTab(AppTab.CALCULATOR) },
-            colors = navColors,
-            icon = {
-                Icon(
-                    imageVector = if (selectedTab == AppTab.CALCULATOR) {
-                        Icons.Filled.Calculate
-                    } else {
-                        Icons.Outlined.Calculate
-                    },
-                    contentDescription = stringResource(R.string.tab_calculator)
-                )
-            },
-            label = {
-                Text(
-                    text = stringResource(R.string.tab_calculator),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            },
-            modifier = Modifier.testTag("nav_tab_calculator")
+    Column(modifier = Modifier.fillMaxWidth()) {
+        HorizontalDivider(
+            color = extras.cardBorder.copy(alpha = 0.7f),
+            thickness = 0.8.dp
         )
+        NavigationBar(
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 0.dp
+        ) {
+            NavigationBarItem(
+                selected = selectedTab == AppTab.CALCULATOR,
+                onClick = { onSelectTab(AppTab.CALCULATOR) },
+                colors = navColors,
+                icon = {
+                    Icon(
+                        imageVector = if (selectedTab == AppTab.CALCULATOR) {
+                            Icons.Filled.Calculate
+                        } else {
+                            Icons.Outlined.Calculate
+                        },
+                        contentDescription = stringResource(R.string.tab_calculator)
+                    )
+                },
+                label = {
+                    Text(
+                        text = stringResource(R.string.tab_calculator),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                modifier = Modifier.testTag("nav_tab_calculator")
+            )
 
-        NavigationBarItem(
-            selected = selectedTab == AppTab.BLENDING,
-            onClick = { onSelectTab(AppTab.BLENDING) },
-            colors = navColors,
-            icon = {
-                Icon(
-                    imageVector = if (selectedTab == AppTab.BLENDING) {
-                        Icons.Filled.Science
-                    } else {
-                        Icons.Outlined.Science
-                    },
-                    contentDescription = stringResource(R.string.tab_blending_full)
-                )
-            },
-            label = {
-                Text(
-                    text = stringResource(R.string.tab_blending),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            },
-            modifier = Modifier.testTag("nav_tab_blending")
-        )
+            NavigationBarItem(
+                selected = selectedTab == AppTab.BLENDING,
+                onClick = { onSelectTab(AppTab.BLENDING) },
+                colors = navColors,
+                icon = {
+                    Icon(
+                        imageVector = if (selectedTab == AppTab.BLENDING) {
+                            Icons.Filled.Science
+                        } else {
+                            Icons.Outlined.Science
+                        },
+                        contentDescription = stringResource(R.string.tab_blending_full)
+                    )
+                },
+                label = {
+                    Text(
+                        text = stringResource(R.string.tab_blending),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                modifier = Modifier.testTag("nav_tab_blending")
+            )
 
-        NavigationBarItem(
-            selected = selectedTab == AppTab.HISTORY,
-            onClick = { onSelectTab(AppTab.HISTORY) },
-            colors = navColors,
-            icon = {
-                BadgedBox(
-                    badge = {
-                        if (logCount > 0) {
-                            Badge(
-                                containerColor = extras.limeAccent,
-                                contentColor = extras.onLimeButton
-                            ) {
-                                Text(text = logCount.toString())
+            NavigationBarItem(
+                selected = selectedTab == AppTab.HISTORY,
+                onClick = { onSelectTab(AppTab.HISTORY) },
+                colors = navColors,
+                icon = {
+                    BadgedBox(
+                        badge = {
+                            if (logCount > 0) {
+                                Badge(
+                                    containerColor = extras.sagePrimary,
+                                    contentColor = extras.onSagePrimary
+                                ) {
+                                    Text(text = logCount.toString())
+                                }
                             }
                         }
+                    ) {
+                        Icon(
+                            imageVector = if (selectedTab == AppTab.HISTORY) {
+                                Icons.Filled.History
+                            } else {
+                                Icons.Outlined.History
+                            },
+                            contentDescription = stringResource(R.string.tab_history)
+                        )
                     }
-                ) {
-                    Icon(
-                        imageVector = if (selectedTab == AppTab.HISTORY) {
-                            Icons.Filled.History
-                        } else {
-                            Icons.Outlined.History
-                        },
-                        contentDescription = stringResource(R.string.tab_history)
+                },
+                label = {
+                    Text(
+                        text = stringResource(R.string.tab_history),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                }
-            },
-            label = {
-                Text(
-                    text = stringResource(R.string.tab_history),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            },
-            modifier = Modifier.testTag("nav_tab_history")
-        )
+                },
+                modifier = Modifier.testTag("nav_tab_history")
+            )
 
-        NavigationBarItem(
-            selected = selectedTab == AppTab.DRAFT,
-            onClick = { onSelectTab(AppTab.DRAFT) },
-            colors = navColors,
-            icon = {
-                Icon(
-                    imageVector = if (selectedTab == AppTab.DRAFT) {
-                        Icons.Filled.EditNote
-                    } else {
-                        Icons.Outlined.EditNote
-                    },
-                    contentDescription = stringResource(R.string.tab_draft_full)
-                )
-            },
-            label = {
-                Text(
-                    text = stringResource(R.string.tab_draft),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            },
-            modifier = Modifier.testTag("nav_tab_draft")
-        )
+            NavigationBarItem(
+                selected = selectedTab == AppTab.DRAFT,
+                onClick = { onSelectTab(AppTab.DRAFT) },
+                colors = navColors,
+                icon = {
+                    Icon(
+                        imageVector = if (selectedTab == AppTab.DRAFT) {
+                            Icons.Filled.EditNote
+                        } else {
+                            Icons.Outlined.EditNote
+                        },
+                        contentDescription = stringResource(R.string.tab_draft_full)
+                    )
+                },
+                label = {
+                    Text(
+                        text = stringResource(R.string.tab_draft),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                modifier = Modifier.testTag("nav_tab_draft")
+            )
 
-        NavigationBarItem(
-            selected = selectedTab == AppTab.ABOUT,
-            onClick = { onSelectTab(AppTab.ABOUT) },
-            colors = navColors,
-            icon = {
-                Icon(
-                    imageVector = if (selectedTab == AppTab.ABOUT) {
-                        Icons.Filled.Info
-                    } else {
-                        Icons.Outlined.Info
-                    },
-                    contentDescription = stringResource(R.string.tab_about)
-                )
-            },
-            label = {
-                Text(
-                    text = stringResource(R.string.tab_about),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            },
-            modifier = Modifier.testTag("nav_tab_about")
-        )
+            NavigationBarItem(
+                selected = selectedTab == AppTab.ABOUT,
+                onClick = { onSelectTab(AppTab.ABOUT) },
+                colors = navColors,
+                icon = {
+                    Icon(
+                        imageVector = if (selectedTab == AppTab.ABOUT) {
+                            Icons.Filled.Info
+                        } else {
+                            Icons.Outlined.Info
+                        },
+                        contentDescription = stringResource(R.string.tab_about)
+                    )
+                },
+                label = {
+                    Text(
+                        text = stringResource(R.string.tab_about),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                modifier = Modifier.testTag("nav_tab_about")
+            )
+        }
     }
 }
 
@@ -1339,8 +1376,8 @@ private fun SoundingNavRail(
                     badge = {
                         if (logCount > 0) {
                             Badge(
-                                containerColor = extras.leafAccent,
-                                contentColor = Color.White
+                                containerColor = extras.sagePrimary,
+                                contentColor = extras.onSagePrimary
                             ) {
                                 Text(text = logCount.toString())
                             }
