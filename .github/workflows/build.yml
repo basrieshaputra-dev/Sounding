@@ -21,6 +21,16 @@ jobs:
         with:
           name: debug-keystore
           path: debug.keystore      
+      - name: Verifikasi app/google-services.json
+        run: |
+          if [ ! -f app/google-services.json ]; then
+            echo "ERROR: app/google-services.json tidak ditemukan di repository GitHub! Upload file app/google-services.json agar layanan Firebase aktif di APK."
+            exit 1
+          fi
+          grep -q '"package_name": "com.aistudio.soundingtangki.ixuqmt"' app/google-services.json || {
+            echo "ERROR: package_name di app/google-services.json tidak cocok dengan applicationId com.aistudio.soundingtangki.ixuqmt"
+            exit 1
+          }
       - run: gradle assembleDebug
       - uses: actions/upload-artifact@v4
         with:

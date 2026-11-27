@@ -24,13 +24,21 @@ import kotlinx.coroutines.tasks.await
 import kotlin.math.round
 
 class FirestoreSoundingRepository(
-    private val db: FirebaseFirestore?,
-    private val auth: FirebaseAuth?
+    private val initialDb: FirebaseFirestore?,
+    private val initialAuth: FirebaseAuth?,
+    private val appContext: Context? = null
 ) {
     constructor(context: Context) : this(
-        db = FirebaseSafeProvider.getFirestore(context.applicationContext),
-        auth = FirebaseSafeProvider.getAuth(context.applicationContext)
+        initialDb = FirebaseSafeProvider.getFirestore(context.applicationContext),
+        initialAuth = FirebaseSafeProvider.getAuth(context.applicationContext),
+        appContext = context.applicationContext
     )
+
+    private val db: FirebaseFirestore?
+        get() = initialDb ?: appContext?.let { FirebaseSafeProvider.getFirestore(it) }
+
+    private val auth: FirebaseAuth?
+        get() = initialAuth ?: appContext?.let { FirebaseSafeProvider.getAuth(it) }
 
     val isFirebaseReady: Boolean
         get() = db != null && auth != null
