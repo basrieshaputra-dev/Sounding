@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -462,6 +463,13 @@ private fun AboutAccountCard(
     val extras = SoundingThemeExtras.colors
     val safeAccountDisplay = activeAccountName.trim().ifEmpty { "-" }
     val safeEmailDisplay = cloudEmail.trim()
+    val statusAccent = if (isOnlineRealtime) extras.leafAccentReadable else MaterialTheme.colorScheme.onSurfaceVariant
+    val statusBg = if (isOnlineRealtime) extras.leafContainer else extras.innerContainer
+    val statusBorder = if (isOnlineRealtime) {
+        extras.leafAccent.copy(alpha = 0.40f)
+    } else {
+        extras.cardBorder
+    }
 
     Surface(
         modifier = Modifier
@@ -475,188 +483,225 @@ private fun AboutAccountCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            SectionTitleRow(
-                icon = if (isOnlineRealtime) Icons.Filled.CloudDone else Icons.Filled.CloudOff,
-                title = stringResource(R.string.about_section_account),
-                accentColor = if (isOnlineRealtime) extras.leafAccentReadable else extras.interactiveAccent
-            )
-
-            // Active Account panel
-            Surface(
+            // Compact header: section title + live cloud badge on one row
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                shape = AboutCtaShape,
-                color = extras.sageContainer
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.label_active_username),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = extras.onSageContainer.copy(alpha = 0.78f)
-                    )
-                    Text(
-                        text = safeAccountDisplay,
-                        style = MonoTypography.subMetric.copy(
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.ExtraBold
-                        ),
-                        color = extras.onSageContainer,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.testTag("about_active_account_name")
+                Box(modifier = Modifier.weight(1f)) {
+                    SectionTitleRow(
+                        icon = if (isOnlineRealtime) Icons.Filled.CloudDone else Icons.Filled.CloudOff,
+                        title = stringResource(R.string.about_section_account),
+                        accentColor = if (isOnlineRealtime) extras.leafAccentReadable else extras.interactiveAccent
                     )
                 }
-            }
-
-            Button(
-                onClick = onOpenSwitchAccount,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 50.dp)
-                    .testTag("about_switch_account_button"),
-                shape = AboutCtaShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = extras.sagePrimary,
-                    contentColor = extras.onSagePrimary
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.SwapHoriz,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = stringResource(R.string.action_switch_username),
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
-                )
-            }
-
-            HorizontalDivider(color = extras.cardBorder.copy(alpha = 0.7f))
-
-            // Cloud Sync status block
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = AboutCtaShape,
-                color = extras.innerContainer,
-                border = BorderStroke(1.dp, extras.cardBorder)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = statusBg,
+                    border = BorderStroke(1.dp, statusBorder)
                 ) {
-                    Text(
-                        text = stringResource(
-                            if (isOnlineRealtime) R.string.status_online_realtime else R.string.status_offline_local
-                        ),
-                        style = MonoTypography.badge.copy(fontWeight = FontWeight.Bold),
-                        color = if (isOnlineRealtime) extras.leafAccentReadable else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (isCloudConnected) {
-                        Text(
-                            text = stringResource(R.string.about_account_signed_in),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(statusAccent)
                         )
-                        if (safeEmailDisplay.isNotEmpty()) {
-                            Text(
-                                text = safeEmailDisplay,
-                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    } else {
                         Text(
-                            text = stringResource(R.string.cloud_sync_disconnected_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = stringResource(
+                                if (isOnlineRealtime) R.string.status_online_realtime else R.string.status_offline_local
+                            ),
+                            style = MonoTypography.badge.copy(
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = statusAccent,
+                            maxLines = 1
                         )
                     }
                 }
             }
 
-            if (isCloudConnected) {
-                OutlinedButton(
-                    onClick = onRequestSignOut,
+            // Unified single row: Active account + verified email/status + Ganti Akun button
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = extras.innerContainer,
+                border = BorderStroke(1.dp, extras.cardBorder)
+            ) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 50.dp)
-                        .testTag("about_sign_out_button"),
-                    shape = AboutCtaShape,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.55f)),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Logout,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(R.string.about_action_sign_out),
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
-                    )
-                }
-            } else {
-                OutlinedButton(
-                    onClick = onConnectCloud,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 50.dp)
-                        .testTag("about_connect_cloud_button"),
-                    shape = AboutCtaShape,
-                    border = BorderStroke(1.dp, extras.sagePrimary.copy(alpha = 0.6f)),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = extras.sagePrimary
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.CloudSync,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(R.string.cloud_sync_verify_email_button),
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
-                    )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = safeAccountDisplay,
+                            style = MonoTypography.subMetric.copy(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.testTag("about_active_account_name")
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            if (isCloudConnected) {
+                                Icon(
+                                    imageVector = Icons.Filled.Verified,
+                                    contentDescription = null,
+                                    tint = extras.leafAccentReadable,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            }
+                            Text(
+                                text = when {
+                                    isCloudConnected && safeEmailDisplay.isNotEmpty() -> safeEmailDisplay
+                                    isCloudConnected -> stringResource(R.string.about_account_signed_in)
+                                    else -> stringResource(R.string.about_cloud_offline_short)
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = onOpenSwitchAccount,
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .testTag("about_switch_account_button"),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = extras.sagePrimary,
+                            contentColor = extras.onSagePrimary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.SwapHoriz,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = stringResource(R.string.action_switch_username),
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            maxLines = 1
+                        )
+                    }
                 }
             }
 
-            if (activeAccountName.isNotBlank()) {
-                OutlinedButton(
-                    onClick = onRequestLogout,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 50.dp)
-                        .testTag("about_logout_button"),
-                    shape = AboutCtaShape,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.65f)),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Logout,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(R.string.about_action_logout),
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
-                    )
+            // Compact side-by-side secondary actions: Cloud Sync toggle + Logout
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isCloudConnected) {
+                    OutlinedButton(
+                        onClick = onRequestSignOut,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp)
+                            .testTag("about_sign_out_button"),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.45f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.CloudOff,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = stringResource(R.string.about_action_disconnect_cloud_short),
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = onConnectCloud,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp)
+                            .testTag("about_connect_cloud_button"),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        border = BorderStroke(1.dp, extras.sagePrimary.copy(alpha = 0.55f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = extras.sagePrimary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.CloudSync,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = stringResource(R.string.about_action_connect_cloud_short),
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                if (activeAccountName.isNotBlank()) {
+                    OutlinedButton(
+                        onClick = onRequestLogout,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp)
+                            .testTag("about_logout_button"),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.55f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Logout,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = stringResource(R.string.about_action_logout_short),
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
         }
@@ -839,8 +884,8 @@ private fun AboutLicenseStatusCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             SectionTitleRow(
                 icon = if (safeLicense.isActivated) Icons.Filled.Verified else Icons.Filled.VpnKey,
@@ -851,61 +896,59 @@ private fun AboutLicenseStatusCard(
             if (safeLicense.isActivated) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
+                    shape = RoundedCornerShape(14.dp),
                     color = extras.leafContainer,
-                    border = BorderStroke(1.dp, extras.leafAccent.copy(alpha = 0.40f))
+                    border = BorderStroke(1.dp, extras.leafAccent.copy(alpha = 0.35f))
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Verified,
                                 contentDescription = null,
                                 tint = extras.onLeafContainer,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                             Text(
                                 text = stringResource(R.string.about_license_active_badge),
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = extras.onLeafContainer
+                                color = extras.onLeafContainer,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                         Text(
-                            text = stringResource(R.string.about_license_active_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        HorizontalDivider(color = extras.leafAccent.copy(alpha = 0.25f))
-                        LicenseKeyValueRow(
-                            label = stringResource(R.string.about_license_code_label),
-                            value = safeLicense.activatedCode,
-                            valueColor = extras.onLeafContainer
-                        )
-                        LicenseKeyValueRow(
-                            label = stringResource(R.string.about_license_date_label),
-                            value = safeLicense.activatedAtLabel,
-                            valueColor = MaterialTheme.colorScheme.onSurface
+                            text = stringResource(
+                                R.string.about_license_activated_summary,
+                                safeLicense.activatedCode.ifBlank { "-" },
+                                safeLicense.activatedAtLabel.ifBlank { "-" }
+                            ),
+                            style = MonoTypography.badge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
             } else {
+                // Compact trial status strip: badge, progress bar, and combined install–end date range
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = AboutCtaShape,
+                    shape = RoundedCornerShape(14.dp),
                     color = extras.innerContainer
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
                             text = stringResource(
@@ -913,29 +956,29 @@ private fun AboutLicenseStatusCard(
                                 safeLicense.remainingTrialDays
                             ),
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         LinearProgressIndicator(
                             progress = { safeLicense.trialProgress },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(7.dp)
+                                .height(6.dp)
                                 .clip(RoundedCornerShape(999.dp)),
                             color = extras.sagePrimary,
                             trackColor = extras.cardBorder
                         )
-                        LicenseKeyValueRow(
-                            label = stringResource(R.string.about_license_install_date_label),
-                            value = safeLicense.installDateLabel,
-                            valueColor = MaterialTheme.colorScheme.onSurface
-                        )
                         Text(
                             text = stringResource(
-                                R.string.about_license_trial_until,
-                                safeLicense.trialEndDateLabel
+                                R.string.about_license_period_range,
+                                safeLicense.installDateLabel.ifBlank { "-" },
+                                safeLicense.trialEndDateLabel.ifBlank { "-" }
                             ),
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -944,9 +987,10 @@ private fun AboutLicenseStatusCard(
                     onClick = onOpenLicenseActivation,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 50.dp)
+                        .heightIn(min = 48.dp)
                         .testTag("about_open_activation_button"),
-                    shape = AboutCtaShape,
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = extras.sagePrimary,
                         contentColor = extras.onSagePrimary
@@ -955,106 +999,76 @@ private fun AboutLicenseStatusCard(
                     Icon(
                         imageVector = Icons.Filled.VpnKey,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = stringResource(R.string.about_license_action_enter_code),
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            // Device ID block with safe Copy button
-            Surface(
+            HorizontalDivider(color = extras.cardBorder.copy(alpha = 0.7f))
+
+            // Compact inline Device ID + Salin button row
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                shape = AboutCtaShape,
-                color = extras.innerContainer,
-                border = BorderStroke(1.dp, extras.cardBorder)
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Smartphone,
-                            contentDescription = null,
-                            tint = extras.interactiveAccent,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                text = stringResource(R.string.about_license_device_id_label),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = safeLicense.deviceIdLabel,
-                                style = MonoTypography.badge,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.testTag("about_device_id_value")
-                            )
-                        }
-                    }
-                    TextButton(
-                        onClick = onCopyDeviceId,
-                        modifier = Modifier
-                            .heightIn(min = 48.dp)
-                            .testTag("about_copy_device_id_button"),
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = extras.interactiveAccent
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.ContentCopy,
-                            contentDescription = stringResource(R.string.about_action_copy_device_id),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Filled.Smartphone,
+                        contentDescription = null,
+                        tint = extras.interactiveAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                         Text(
-                            text = stringResource(R.string.about_action_copy_device_id),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                            text = stringResource(R.string.about_license_device_id_label),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = safeLicense.deviceIdLabel,
+                            style = MonoTypography.badge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.testTag("about_device_id_value")
                         )
                     }
+                }
+                TextButton(
+                    onClick = onCopyDeviceId,
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .testTag("about_copy_device_id_button"),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = extras.interactiveAccent
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ContentCopy,
+                        contentDescription = stringResource(R.string.about_action_copy_device_id),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.about_action_copy_short),
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                    )
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun LicenseKeyValueRow(
-    label: String,
-    value: String,
-    valueColor: Color
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value.ifBlank { "-" },
-            style = MonoTypography.badge.copy(fontWeight = FontWeight.Bold),
-            color = valueColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 }
 

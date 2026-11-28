@@ -3,6 +3,9 @@
     <string name="app_header_title">E - TXT</string>
     <string name="app_header_subtitle">FAC - SPECIALTY FATS - TEXTURIZING</string>
     <string name="app_header_credit">App By. Basri syaputra ID 11536</string>
+    <string name="splash_deployed_label">Deployed &amp; Developed by</string>
+    <string name="splash_deployed_author">Basri Syaputra • ID 11536</string>
+    <string name="cd_splash_logo">Logo aplikasi E - TXT</string>
 
     <!-- Navigation Tabs -->
     <string name="tab_calculator">Sounding</string>
@@ -191,10 +194,13 @@
     <string name="about_license_install_date_label">Tanggal Instalasi</string>
     <string name="about_license_device_id_label">ID Perangkat</string>
     <string name="about_action_copy_device_id">Salin ID Perangkat</string>
+    <string name="about_action_copy_short">Salin</string>
     <string name="msg_device_id_copied">ID perangkat disalin ke clipboard</string>
     <string name="msg_about_action_failed">Gagal menjalankan aksi. Silakan coba lagi.</string>
     <string name="about_license_trial_badge">Masa Trial 60 Hari • Sisa %1$d Hari</string>
     <string name="about_license_trial_until">Berakhir pada %1$s</string>
+    <string name="about_license_period_range">%1$s – %2$s</string>
+    <string name="about_license_activated_summary">%1$s • %2$s</string>
     <string name="about_license_action_enter_code">Masukkan Kode Aktivasi</string>
     <string name="license_expired_badge">Masa Trial 60 Hari Berakhir</string>
     <string name="license_expired_title">Aktivasi Lisensi Diperlukan</string>
@@ -372,10 +378,14 @@
     <!-- Account Card on About Screen -->
     <string name="about_section_account">Akun &amp; Sinkronisasi Cloud</string>
     <string name="about_account_signed_in">Email Terverifikasi (Cloud Realtime)</string>
+    <string name="about_cloud_offline_short">Mode lokal • belum tersinkron cloud</string>
     <string name="about_action_sign_out">Putuskan Sinkronisasi Cloud</string>
+    <string name="about_action_disconnect_cloud_short">Putuskan Cloud</string>
+    <string name="about_action_connect_cloud_short">Verifikasi Cloud</string>
     <string name="about_sign_out_confirm_title">Putuskan Sinkronisasi Cloud?</string>
     <string name="about_sign_out_confirm_msg">Data lokal dan nama akun Anda tetap aman. Aplikasi akan berjalan di mode OFFLINE • LOKAL sampai diverifikasi ulang via email.</string>
     <string name="about_action_logout">Keluar / Logout</string>
+    <string name="about_action_logout_short">Keluar</string>
     <string name="about_logout_confirm_title">Keluar dari Akun?</string>
     <string name="about_logout_confirm_msg">Sesi login aktif akan diakhiri dan Anda akan kembali ke layar Masuk Akun. Data sounding lokal dan daftar akun terverifikasi di perangkat tetap tersimpan aman.</string>
     <string name="msg_logged_out">Anda telah keluar dari akun.</string>

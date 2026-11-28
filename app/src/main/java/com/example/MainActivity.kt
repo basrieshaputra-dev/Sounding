@@ -16,6 +16,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -77,6 +81,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -117,6 +122,7 @@ import com.example.ui.components.ExportJpgReportSheet
 import com.example.ui.components.UpdateAvailableBanner
 import com.example.ui.components.UpdateAvailableDialog
 import com.example.ui.screens.AboutScreen
+import com.example.ui.screens.AppSplashScreen
 import com.example.ui.screens.BlendingScreen
 import com.example.ui.screens.CalculatorScreen
 import com.example.ui.screens.DraftReportScreen
@@ -149,7 +155,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         FirebaseSafeProvider.ensureInitialized(applicationContext)
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+            statusBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            ),
+            navigationBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            )
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             runCatching {
@@ -163,9 +176,29 @@ class MainActivity : ComponentActivity() {
             val updateViewModel: AppUpdateViewModel = viewModel()
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
             val updateUiState by updateViewModel.uiState.collectAsStateWithLifecycle()
+            var showSplash by rememberSaveable { mutableStateOf(true) }
             var authOverlayRequest by remember { mutableStateOf<EmailVerificationRequest?>(null) }
             var hasRequestedNotifPermission by remember { mutableStateOf(false) }
             var deferredNotificationRelease by remember { mutableStateOf<GitHubReleaseInfo?>(null) }
+
+            LaunchedEffect(showSplash) {
+                if (showSplash) {
+                    enableEdgeToEdge(
+                        statusBarStyle = SystemBarStyle.light(
+                            android.graphics.Color.TRANSPARENT,
+                            android.graphics.Color.TRANSPARENT
+                        ),
+                        navigationBarStyle = SystemBarStyle.light(
+                            android.graphics.Color.TRANSPARENT,
+                            android.graphics.Color.TRANSPARENT
+                        )
+                    )
+                } else {
+                    enableEdgeToEdge(
+                        statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    )
+                }
+            }
 
             val notificationPermissionLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestPermission()
@@ -219,73 +252,85 @@ class MainActivity : ComponentActivity() {
             val showAuthScreen = !uiState.isOperatorLoggedIn || authOverlayRequest != null
 
             SoundingTangkiTheme(darkTheme = uiState.isDarkTheme) {
-                if (showAuthScreen) {
-                    val req = authOverlayRequest
-                    OperatorAuthScreen(
-                        verifiedAccounts = uiState.verifiedAccounts,
-                        savedCredentialUsernames = uiState.savedCredentialUsernames,
-                        pendingVerification = uiState.pendingEmailVerification,
-                        initialAccountName = req?.username ?: uiState.activeAccountName,
-                        initialEmail = req?.email ?: uiState.activeOperatorEmail,
-                        forceRegisterTab = req != null,
-                        allowCancelBack = uiState.isOperatorLoggedIn && req != null,
-                        isOnlineRealtime = uiState.isOnlineRealtime,
-                        onLoadSavedPassword = viewModel::getSavedPasswordForAccount,
-                        onForgetSavedAccount = viewModel::forgetSavedAccountCredentials,
-                        onLoginWithUsernamePassword = { rawUsername, rawPassword, rememberCredentials ->
-                            val result = viewModel.authenticateWithUsernameAndPassword(
-                                rawIdentifier = rawUsername,
-                                rawPassword = rawPassword,
-                                rememberCredentials = rememberCredentials
-                            )
-                            if (result is UsernamePasswordLoginResult.Success) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (showAuthScreen) {
+                        val req = authOverlayRequest
+                        OperatorAuthScreen(
+                            verifiedAccounts = uiState.verifiedAccounts,
+                            savedCredentialUsernames = uiState.savedCredentialUsernames,
+                            pendingVerification = uiState.pendingEmailVerification,
+                            initialAccountName = req?.username ?: uiState.activeAccountName,
+                            initialEmail = req?.email ?: uiState.activeOperatorEmail,
+                            forceRegisterTab = req != null,
+                            allowCancelBack = uiState.isOperatorLoggedIn && req != null,
+                            isOnlineRealtime = uiState.isOnlineRealtime,
+                            onLoadSavedPassword = viewModel::getSavedPasswordForAccount,
+                            onForgetSavedAccount = viewModel::forgetSavedAccountCredentials,
+                            onLoginWithUsernamePassword = { rawUsername, rawPassword, rememberCredentials ->
+                                val result = viewModel.authenticateWithUsernameAndPassword(
+                                    rawIdentifier = rawUsername,
+                                    rawPassword = rawPassword,
+                                    rememberCredentials = rememberCredentials
+                                )
+                                if (result is UsernamePasswordLoginResult.Success) {
+                                    authOverlayRequest = null
+                                }
+                                result
+                            },
+                            onResolvePasswordResetEmail = viewModel::resolveEmailForPasswordReset,
+                            onSavePendingVerification = { rawUsername, email, passwordHash, rawPasswordToRemember ->
+                                viewModel.savePendingEmailVerification(
+                                    rawUsername = rawUsername,
+                                    email = email,
+                                    passwordHash = passwordHash,
+                                    rawPasswordToRemember = rawPasswordToRemember
+                                )
+                            },
+                            onClearPendingVerification = {
+                                viewModel.clearPendingEmailVerification()
+                            },
+                            onAccountEmailVerified = { rawUsername, email, passwordHash, rawPasswordToRemember ->
+                                viewModel.completeVerifiedAccountRegistration(
+                                    rawUsername = rawUsername,
+                                    email = email,
+                                    passwordHash = passwordHash,
+                                    rawPasswordToRemember = rawPasswordToRemember
+                                )
                                 authOverlayRequest = null
+                            },
+                            onCancelBack = { authOverlayRequest = null }
+                        )
+                    } else {
+                        SoundingTangkiApp(
+                            uiState = uiState,
+                            viewModel = viewModel,
+                            updateUiState = updateUiState,
+                            onCheckForUpdate = { updateViewModel.checkForUpdates(isManual = true) },
+                            onOpenUpdateDialog = updateViewModel::openUpdateDialog,
+                            onDismissUpdateBanner = updateViewModel::dismissUpdateBanner,
+                            onDownloadUpdate = ::openUpdateDownload,
+                            onOpenEmailVerification = { username, email ->
+                                authOverlayRequest = EmailVerificationRequest(
+                                    username = username,
+                                    email = email
+                                )
                             }
-                            result
-                        },
-                        onResolvePasswordResetEmail = viewModel::resolveEmailForPasswordReset,
-                        onSavePendingVerification = { rawUsername, email, passwordHash, rawPasswordToRemember ->
-                            viewModel.savePendingEmailVerification(
-                                rawUsername = rawUsername,
-                                email = email,
-                                passwordHash = passwordHash,
-                                rawPasswordToRemember = rawPasswordToRemember
-                            )
-                        },
-                        onClearPendingVerification = {
-                            viewModel.clearPendingEmailVerification()
-                        },
-                        onAccountEmailVerified = { rawUsername, email, passwordHash, rawPasswordToRemember ->
-                            viewModel.completeVerifiedAccountRegistration(
-                                rawUsername = rawUsername,
-                                email = email,
-                                passwordHash = passwordHash,
-                                rawPasswordToRemember = rawPasswordToRemember
-                            )
-                            authOverlayRequest = null
-                        },
-                        onCancelBack = { authOverlayRequest = null }
-                    )
-                } else {
-                    SoundingTangkiApp(
-                        uiState = uiState,
-                        viewModel = viewModel,
-                        updateUiState = updateUiState,
-                        onCheckForUpdate = { updateViewModel.checkForUpdates(isManual = true) },
-                        onOpenUpdateDialog = updateViewModel::openUpdateDialog,
-                        onDismissUpdateBanner = updateViewModel::dismissUpdateBanner,
-                        onDownloadUpdate = ::openUpdateDownload,
-                        onOpenEmailVerification = { username, email ->
-                            authOverlayRequest = EmailVerificationRequest(
-                                username = username,
-                                email = email
-                            )
-                        }
-                    )
+                        )
+                    }
+
+                    AnimatedVisibility(
+                        visible = showSplash,
+                        enter = EnterTransition.None,
+                        exit = fadeOut(animationSpec = tween(durationMillis = 260))
+                    ) {
+                        AppSplashScreen(
+                            onSplashFinished = { showSplash = false }
+                        )
+                    }
                 }
 
                 val dialogRelease = updateUiState.availableRelease
-                if (updateUiState.showUpdateDialog && dialogRelease != null) {
+                if (!showSplash && updateUiState.showUpdateDialog && dialogRelease != null) {
                     UpdateAvailableDialog(
                         currentVersionLabel = updateUiState.currentVersionLabel,
                         release = dialogRelease,
